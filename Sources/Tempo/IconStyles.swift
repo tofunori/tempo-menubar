@@ -23,7 +23,7 @@ extension IconRenderer {
         case .arcs: return (30, 18)
         case .duo: return (20, 18)
         case .matrix: return (30, 18)
-        case .lines: return (36, 22)
+        case .lines: return (40, 22)
         case .monogram: return (24, 20)
         case .book: return (26, 18)
         case .metronome: return (28, 18)
@@ -34,6 +34,17 @@ extension IconRenderer {
         case .segments: return (29, 18)
         case .ringNumber: return (24, 21)
         case .ring, .gauge, .bar, .none: return (24, 18)
+        }
+    }
+
+    /// Hauteur du dessin à la grosseur normale, en points.
+    static func naturalHeight(_ style: IconStyle) -> CGFloat {
+        switch style {
+        case .ring: return 18
+        case .gauge: return 13
+        case .bar: return 10
+        case .none: return 0
+        default: return geometry(style).height
         }
     }
 
@@ -247,19 +258,20 @@ private struct Pen {
     }
 
     /// Deux lignes : une mini-barre et un chiffre par valeur.
+    /// Le dessin remplit toute la hauteur : ce style est déjà aussi haut que la barre de menus.
     func lines(_ w: Double, _ f: Double?, _ t: Double?) {
         func row(_ y: CGFloat, _ value: Double, _ color: NSColor) {
-            rect(NSRect(x: 0, y: y, width: 13, height: 3.6), 1.8, track)
+            rect(NSRect(x: 0, y: y, width: 14, height: 4.2), 2.1, track)
             if value > 0.5 {
-                rect(NSRect(x: 0, y: y, width: max(3.6, 13 * value / 100), height: 3.6), 1.8, color)
+                rect(NSRect(x: 0, y: y, width: max(4.2, 14 * value / 100), height: 4.2), 2.1, color)
             }
-            text("\(Int(value.rounded()))", x: 16.5, baseline: y + 5.4, size: 10, color)
+            text("\(Int(value.rounded()))", x: 17.5, baseline: y + 6.3, size: 11.6, color)
         }
-        row(4.6, w, kw)
-        if let f { row(15.4, f, kf) }
+        row(3.9, w, kw)
+        if let f { row(15.9, f, kf) }
         if let t {
-            let x = min(max(13 * t / 100, 0.6), 12.4)
-            line(CGPoint(x: x, y: 3.2), CGPoint(x: x, y: 9.6), ink, 1.2)
+            let x = min(max(14 * t / 100, 0.6), 13.4)
+            line(CGPoint(x: x, y: 2.3), CGPoint(x: x, y: 9.7), ink, 1.2)
         }
     }
 

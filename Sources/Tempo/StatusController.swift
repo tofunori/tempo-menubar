@@ -13,6 +13,7 @@ final class StatusController: NSObject {
     private var bag = Set<AnyCancellable>()
     private var minuteTimer: Timer?
     private var openSettings: () -> Void = {}
+    private var diagnostics: [Int: String] = [:]
 
     init(store: UsageStore, settings: Settings, openSettings: @escaping () -> Void) {
         self.store = store
@@ -63,7 +64,13 @@ final class StatusController: NSObject {
             guard let button = item.button else { continue }
 
             let options = settings.options(for: index)
-            let content = MenuBarContent.make(data: data, options: options, now: now)
+            // La place réelle dans la barre : sur un Mac à encoche, le bouton est plus haut que l'épaisseur annoncée.
+            let room = max(button.bounds.height, NSStatusBar.system.thickness)
+            let content = MenuBarContent.make(data: data, options: options, now: now, maxHeight: room)
+            // Trace de ce qui est réellement affiché, lisible avec `defaults read app.tempo.menubar diagnostics`.
+            diagnostics[index] = "icône \(index + 1) : \(options.iconStyle.rawValue) à \(Int(options.scale * 100)) %, "
+                + "image \(content.image.map { "\(Int($0.size.width))x\(Int($0.size.height))" } ?? "aucune"), "
+                + "bouton \(Int(button.bounds.width))x\(Int(button.bounds.height)), barre \(Int(NSStatusBar.system.thickness))"
             button.image = content.image
             button.imagePosition = content.title.length == 0 ? .imageOnly : .imageLeading
             let title = NSMutableAttributedString()
@@ -77,6 +84,11 @@ final class StatusController: NSObject {
             // On grise l'icône quand le service de sa valeur principale n'a plus de relevé récent.
             let provider = config.primary.provider
             button.appearsDisabled = provider == .claude && store.snapshot != nil && store.isStale
+        }
+
+        let report = diagnostics.keys.sorted().compactMap { diagnostics[$0] }.joined(separator: " | ")
+        if report != UserDefaults.standard.string(forKey: "diagnostics") {
+            UserDefaults.standard.set(report, forKey: "diagnostics")
         }
     }
 

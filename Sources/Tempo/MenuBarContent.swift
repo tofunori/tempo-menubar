@@ -12,20 +12,23 @@ struct MenuBarContent {
     }
 
     /// Dessine l'icône à la grosseur demandée, sans la laisser dépasser de la barre de menus.
-    private static func icon(_ style: IconStyle, _ input: IconInput, zoom: CGFloat, fitMenuBar: Bool) -> NSImage? {
+    private static func icon(_ style: IconStyle, _ input: IconInput, zoom: CGFloat, maxHeight: CGFloat?) -> NSImage? {
         guard let image = IconRenderer.image(style: style, input: input, zoom: zoom) else { return nil }
-        let limit = NSStatusBar.system.thickness - 2
-        guard fitMenuBar, image.size.height > limit else { return image }
-        return IconRenderer.image(style: style, input: input, zoom: zoom * limit / image.size.height)
+        guard let maxHeight, image.size.height > maxHeight else { return image }
+        return IconRenderer.image(style: style, input: input, zoom: zoom * maxHeight / image.size.height)
     }
 
-    /// - Parameter zoom: nil = taille de la barre de menus, à la grosseur des réglages ;
-    ///   une valeur fixe pour les aperçus, qui ignorent la grosseur.
-    static func make(data: UsageData, options: DisplayOptions, now: Date, zoom fixedZoom: CGFloat? = nil) -> MenuBarContent {
+    /// - Parameters:
+    ///   - zoom: nil = taille de la barre de menus, à la grosseur des réglages ;
+    ///     une valeur fixe pour les aperçus, qui ignorent la grosseur.
+    ///   - maxHeight: hauteur que le dessin ne doit pas dépasser (celle du bouton dans la barre).
+    static func make(
+        data: UsageData, options: DisplayOptions, now: Date,
+        zoom fixedZoom: CGFloat? = nil, maxHeight: CGFloat? = nil
+    ) -> MenuBarContent {
         let style = options.iconStyle
         let scale = CGFloat(options.scale)
         let zoom = fixedZoom ?? scale
-        let fitMenuBar = fixedZoom == nil
         let font = Self.font(fixedZoom == nil ? scale : 1)
 
         // Les deux valeurs de l'icône. La deuxième est ignorée si elle répète la première.
@@ -36,7 +39,7 @@ struct MenuBarContent {
         guard let first else {
             // Pas encore de données pour la valeur choisie : icône vide.
             let input = IconInput(primary: 0, secondary: style.isDual && secondKey != nil ? 0 : nil, elapsed: nil)
-            let image = icon(style, input, zoom: zoom, fitMenuBar: fitMenuBar)
+            let image = icon(style, input, zoom: zoom, maxHeight: maxHeight)
             return MenuBarContent(
                 image: image,
                 title: NSAttributedString(string: image == nil ? "–" : "", attributes: [.font: font]),
@@ -60,7 +63,7 @@ struct MenuBarContent {
             days: style == .week ? Pace.dailyUsage(for: first, samples: data.samples, now: now) : [],
             template: !colored
         )
-        let image = icon(style, input, zoom: zoom, fitMenuBar: fitMenuBar)
+        let image = icon(style, input, zoom: zoom, maxHeight: maxHeight)
 
         var mode = options.barText
         if image == nil, mode == .none { mode = .percent }

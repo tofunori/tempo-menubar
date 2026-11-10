@@ -113,8 +113,31 @@ struct SettingsView: View {
                 }
             }
 
+            if let note = sizeNote {
+                Text(note).font(.caption).foregroundStyle(.secondary)
+            }
+
             StyleGallery(settings: settings, index: selected, data: previewData)
         }
+    }
+
+    /// Prévient quand le dessin ne peut plus grossir : il occupe déjà toute la hauteur de la barre de menus.
+    private var sizeNote: String? {
+        let item = settings.items[selected]
+        let bar = NSStatusBar.system.thickness
+        let natural = IconRenderer.naturalHeight(item.iconStyle)
+        guard natural > 0, natural * item.scale >= bar else { return nil }
+        let points = Int(bar)
+        if item.barText == .none || item.iconStyle == .lines {
+            return tr(
+                "Le dessin occupe toute la hauteur de la barre de menus (\(points) points) : il ne peut pas grossir davantage.",
+                "The drawing fills the height of the menu bar (\(points) points): it cannot grow any further."
+            )
+        }
+        return tr(
+            "Le dessin occupe toute la hauteur de la barre de menus (\(points) points). Au-delà, seul le texte à côté grandit.",
+            "The drawing fills the height of the menu bar (\(points) points). Beyond that, only the text beside it grows."
+        )
     }
 
     /// Dit pourquoi une valeur choisie n'a pas de chiffre, s'il y a lieu.
