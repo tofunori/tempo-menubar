@@ -5,9 +5,9 @@ enum StyleGroup: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .dual: return "Hebdo et modèle dans la même icône"
-        case .single: return "Une valeur"
-        case .classic: return "Classiques"
+        case .dual: return tr("Hebdo et modèle dans la même icône", "Weekly and model in one icon")
+        case .single: return tr("Une valeur", "One value")
+        case .classic: return tr("Classiques", "Classics")
         }
     }
 }
@@ -24,25 +24,25 @@ enum IconStyle: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .dial: return "Montre"
-        case .parens: return "Parenthèses"
-        case .arcs: return "Arc double"
+        case .dial: return tr("Montre", "Watch")
+        case .parens: return tr("Parenthèses", "Parentheses")
+        case .arcs: return tr("Arc double", "Double arc")
         case .duo: return "Duo"
-        case .matrix: return "Matrice"
-        case .lines: return "Deux lignes"
-        case .monogram: return "Monogramme"
-        case .book: return "Livre"
-        case .metronome: return "Métronome"
-        case .week: return "Semaine"
-        case .hourglass: return "Sablier"
-        case .moon: return "Lune"
-        case .battery: return "Pile"
+        case .matrix: return tr("Matrice", "Matrix")
+        case .lines: return tr("Deux lignes", "Two lines")
+        case .monogram: return tr("Monogramme", "Monogram")
+        case .book: return tr("Livre", "Book")
+        case .metronome: return tr("Métronome", "Metronome")
+        case .week: return tr("Semaine", "Week")
+        case .hourglass: return tr("Sablier", "Hourglass")
+        case .moon: return tr("Lune", "Moon")
+        case .battery: return tr("Pile", "Battery")
         case .segments: return "Segments"
-        case .ringNumber: return "Anneau chiffré"
-        case .ring: return "Anneau"
-        case .gauge: return "Cadran"
-        case .bar: return "Barre"
-        case .none: return "Aucune"
+        case .ringNumber: return tr("Anneau chiffré", "Numbered ring")
+        case .ring: return tr("Anneau", "Ring")
+        case .gauge: return tr("Cadran", "Gauge")
+        case .bar: return tr("Barre", "Bar")
+        case .none: return tr("Aucune", "None")
         }
     }
 
@@ -67,11 +67,11 @@ enum BarText: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .none: return "Aucun"
-        case .percent: return "Pourcentage"
-        case .percentDelta: return "Pourcentage et écart"
-        case .delta: return "Écart au rythme"
-        case .forecast: return "Prévision d'épuisement"
+        case .none: return tr("Aucun", "None")
+        case .percent: return tr("Pourcentage", "Percentage")
+        case .percentDelta: return tr("Pourcentage et écart", "Percentage and gap")
+        case .delta: return tr("Écart au rythme", "Gap to pace")
+        case .forecast: return tr("Prévision d'épuisement", "Run-out forecast")
         }
     }
 }
@@ -82,9 +82,9 @@ enum ColorMode: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .mono: return "Monochrome"
-        case .thresholds: return "Seuils"
-        case .gradient: return "Dégradé"
-        case .pace: return "Cadence"
+        case .thresholds: return tr("Seuils", "Thresholds")
+        case .gradient: return tr("Dégradé", "Gradient")
+        case .pace: return tr("Cadence", "Pace")
         }
     }
 }
@@ -95,9 +95,9 @@ enum ModelColorMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .none: return "Comme le texte"
-        case .fixed: return "Couleur fixe"
-        case .usage: return "Selon son usage"
+        case .none: return tr("Comme le texte", "Same as text")
+        case .fixed: return tr("Couleur fixe", "Fixed color")
+        case .usage: return tr("Selon son usage", "By its own usage")
         }
     }
 }
@@ -146,18 +146,20 @@ struct Palette: Equatable {
     var dangerAt = 85.0
 
     struct Preset: Identifiable {
-        let name: String
+        let french: String
+        let english: String
+        var name: String { tr(french, english) }
         let low: String
         let mid: String
         let high: String
-        var id: String { name }
+        var id: String { english }
     }
 
     static let presets = [
-        Preset(name: "Classique", low: "34C759", mid: "FF9500", high: "FF3B30"),
-        Preset(name: "Braise", low: "FFD60A", mid: "FF9F0A", high: "FF453A"),
-        Preset(name: "Océan", low: "5AC8FA", mid: "5E5CE6", high: "FF375F"),
-        Preset(name: "Aurore", low: "30D158", mid: "64D2FF", high: "BF5AF2"),
+        Preset(french: "Classique", english: "Classic", low: "34C759", mid: "FF9500", high: "FF3B30"),
+        Preset(french: "Braise", english: "Ember", low: "FFD60A", mid: "FF9F0A", high: "FF453A"),
+        Preset(french: "Océan", english: "Ocean", low: "5AC8FA", mid: "5E5CE6", high: "FF375F"),
+        Preset(french: "Aurore", english: "Aurora", low: "30D158", mid: "64D2FF", high: "BF5AF2"),
     ]
 
     /// Couleur pour un pourcentage utilisé : par paliers, ou fondue d'une couleur à l'autre.
@@ -215,12 +217,21 @@ final class Settings: ObservableObject {
     @Published var showPace: Bool { didSet { defaults.set(showPace, forKey: "showPace") } }
     @Published var showRemaining: Bool { didSet { defaults.set(showRemaining, forKey: "showRemaining") } }
     @Published var refreshMinutes: Int { didSet { defaults.set(refreshMinutes, forKey: "refreshMinutes") } }
+    @Published var language: AppLanguage {
+        didSet {
+            defaults.set(language.rawValue, forKey: "language")
+            Lang.setting = language
+        }
+    }
 
     private let defaults = UserDefaults.standard
 
     init() {
         let d = UserDefaults.standard
         let base = DisplayOptions()
+        let savedLanguage = d.string(forKey: "language").flatMap(AppLanguage.init(rawValue:)) ?? .auto
+        language = savedLanguage
+        Lang.setting = savedLanguage
         iconStyle = d.string(forKey: "iconStyle").flatMap(IconStyle.init(rawValue:)) ?? base.iconStyle
         metric = d.string(forKey: "metric").flatMap(Metric.init(rawValue:)) ?? base.metric
         barText = d.string(forKey: "barText").flatMap(BarText.init(rawValue:)) ?? base.barText

@@ -19,6 +19,8 @@ if let index = arguments.firstIndex(of: "--icons"), arguments.count > index + 1 
 
 if let index = arguments.firstIndex(of: "--panel"), arguments.count > index + 1 {
     MainActor.assumeIsolated {
+        if arguments.contains("en") { Lang.setting = .en }
+        if arguments.contains("fr") { Lang.setting = .fr }
         DebugTools.panel(to: arguments[index + 1], over: arguments.contains("over"))
     }
     exit(0)

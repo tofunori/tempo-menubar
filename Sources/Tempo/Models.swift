@@ -24,9 +24,9 @@ struct UsageLimit: Identifiable, Equatable {
 
     var label: String {
         switch kind {
-        case .weeklyAll: return "Hebdo · tous modèles"
-        case .weeklyModel(let name): return "Hebdo · \(name)"
-        case .session: return "Session 5 h"
+        case .weeklyAll: return tr("Hebdo · tous modèles", "Weekly · all models")
+        case .weeklyModel(let name): return tr("Hebdo · \(name)", "Weekly · \(name)")
+        case .session: return tr("Session 5 h", "5-hour session")
         case .other(let raw): return raw.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
@@ -143,7 +143,7 @@ struct APIUsage: Decodable {
             case "weekly_all":
                 out.append(UsageLimit(kind: .weeklyAll, percent: percent, resetsAt: reset))
             case "weekly_scoped":
-                let name = l.scope?.model?.display_name ?? "Modèle"
+                let name = l.scope?.model?.display_name ?? tr("Modèle", "Model")
                 out.append(UsageLimit(kind: .weeklyModel(name), percent: percent, resetsAt: reset))
             default:
                 if l.group == "session" || kind.contains("session") || kind.contains("five_hour") {

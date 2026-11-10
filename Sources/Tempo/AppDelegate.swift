@@ -33,12 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let window = NSWindow(contentViewController: NSHostingController(
                 rootView: SettingsView(settings: settings, store: store)
             ))
-            window.title = "Réglages de Tempo"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window
         }
+        settingsWindow?.title = tr("Réglages de Tempo", "Tempo Settings")
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
     }

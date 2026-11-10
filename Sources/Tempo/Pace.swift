@@ -28,9 +28,9 @@ enum PaceStatus {
 
     var label: String {
         switch self {
-        case .onTrack: return "Dans le rythme"
-        case .tight: return "Serré"
-        case .over: return "Trop vite"
+        case .onTrack: return tr("Dans le rythme", "On pace")
+        case .tight: return tr("Serré", "Tight")
+        case .over: return tr("Trop vite", "Too fast")
         }
     }
 }

@@ -24,37 +24,41 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Style de l'icône") {
+            Section(tr("Style de l'icône", "Icon style")) {
                 StyleGallery(settings: settings, snapshot: previewSnapshot, samples: simulate ? [] : store.samples)
             }
 
             colorSection
 
-            Section("Affichage") {
-                Picker("Donnée", selection: $settings.metric) {
-                    Text("Hebdo + \(modelName)").tag(Metric.both)
-                    Text("Hebdo").tag(Metric.weekly)
+            Section(tr("Affichage", "Display")) {
+                Picker(tr("Donnée", "Value"), selection: $settings.metric) {
+                    Text(tr("Hebdo + \(modelName)", "Weekly + \(modelName)")).tag(Metric.both)
+                    Text(tr("Hebdo", "Weekly")).tag(Metric.weekly)
                     Text(modelName).tag(Metric.model)
                 }
                 .pickerStyle(.segmented)
                 .disabled(settings.iconStyle.isDual)
 
-                Picker("Texte", selection: $settings.barText) {
+                Picker(tr("Texte", "Text"), selection: $settings.barText) {
                     ForEach(BarText.allCases) { Text($0.label).tag($0) }
                 }
 
-                Toggle("Repère de rythme sur l'icône", isOn: $settings.showPace)
-                Toggle("Afficher le restant plutôt que l'utilisé", isOn: $settings.showRemaining)
+                Toggle(tr("Repère de rythme sur l'icône", "Pace marker on the icon"), isOn: $settings.showPace)
+                Toggle(tr("Afficher le restant plutôt que l'utilisé", "Show what is left instead of what is used"), isOn: $settings.showRemaining)
             }
 
-            Section("Données") {
-                Picker("Actualisation", selection: $settings.refreshMinutes) {
-                    Text("Aux 5 minutes").tag(5)
-                    Text("Aux 15 minutes").tag(15)
-                    Text("Aux 30 minutes").tag(30)
+            Section(tr("Général", "General")) {
+                Picker(tr("Langue", "Language"), selection: $settings.language) {
+                    ForEach(AppLanguage.allCases) { Text($0.label).tag($0) }
                 }
 
-                Toggle("Ouvrir Tempo à la connexion", isOn: Binding(
+                Picker(tr("Actualisation", "Refresh"), selection: $settings.refreshMinutes) {
+                    Text(tr("Aux 5 minutes", "Every 5 minutes")).tag(5)
+                    Text(tr("Aux 15 minutes", "Every 15 minutes")).tag(15)
+                    Text(tr("Aux 30 minutes", "Every 30 minutes")).tag(30)
+                }
+
+                Toggle(tr("Ouvrir Tempo à la connexion", "Open Tempo at login"), isOn: Binding(
                     get: { launchAtLogin },
                     set: { setLaunchAtLogin($0) }
                 ))
@@ -73,8 +77,8 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var colorSection: some View {
-        Section("Couleurs") {
-            Picker("Couleur de l'hebdo", selection: $settings.colorMode) {
+        Section(tr("Couleurs", "Colors")) {
+            Picker(tr("Couleur de l'hebdo", "Weekly color"), selection: $settings.colorMode) {
                 ForEach(ColorMode.allCases) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -82,12 +86,12 @@ struct SettingsView: View {
             Text(modeHelp).font(.caption).foregroundStyle(.secondary)
 
             if settings.colorMode != .mono || settings.modelColorMode == .usage {
-                LabeledContent("Palette") {
+                LabeledContent(tr("Palette", "Palette")) {
                     HStack(spacing: 14) {
-                        swatch(settings.colorMode == .pace ? "Dans le rythme" : "Début", \.low)
-                        swatch(settings.colorMode == .pace ? "Serré" : "Milieu", \.mid)
-                        swatch(settings.colorMode == .pace ? "Trop vite" : "Fin", \.high)
-                        Menu("Modèles") {
+                        swatch(settings.colorMode == .pace ? tr("Dans le rythme", "On pace") : tr("Début", "Start"), \.low)
+                        swatch(settings.colorMode == .pace ? tr("Serré", "Tight") : tr("Milieu", "Middle"), \.mid)
+                        swatch(settings.colorMode == .pace ? tr("Trop vite", "Too fast") : tr("Fin", "End"), \.high)
+                        Menu(tr("Modèles", "Presets")) {
                             ForEach(Palette.presets) { preset in
                                 Button(preset.name) { apply(preset) }
                             }
@@ -98,13 +102,13 @@ struct SettingsView: View {
 
                 if usesScale || settings.modelColorMode == .usage {
                     ScaleStrip(palette: settings.palette, gradient: settings.colorMode == .gradient)
-                    LabeledContent("Milieu à partir de \(Int(settings.palette.warnAt)) %") {
+                    LabeledContent(tr("Milieu à partir de \(Fmt.pct(settings.palette.warnAt))", "Middle from \(Fmt.pct(settings.palette.warnAt))")) {
                         Slider(value: $settings.palette.warnAt, in: 5...90, step: 5)
                             .onChange(of: settings.palette.warnAt) { _, value in
                                 if settings.palette.dangerAt <= value { settings.palette.dangerAt = value + 5 }
                             }
                     }
-                    LabeledContent("Fin à partir de \(Int(settings.palette.dangerAt)) %") {
+                    LabeledContent(tr("Fin à partir de \(Fmt.pct(settings.palette.dangerAt))", "End from \(Fmt.pct(settings.palette.dangerAt))")) {
                         Slider(value: $settings.palette.dangerAt, in: 10...100, step: 5)
                             .onChange(of: settings.palette.dangerAt) { _, value in
                                 if settings.palette.warnAt >= value { settings.palette.warnAt = value - 5 }
@@ -113,19 +117,19 @@ struct SettingsView: View {
                 }
             }
 
-            Picker("Couleur de \(modelName)", selection: $settings.modelColorMode) {
+            Picker(tr("Couleur de \(modelName)", "\(modelName) color"), selection: $settings.modelColorMode) {
                 ForEach(ModelColorMode.allCases) { Text($0.label).tag($0) }
             }
             if settings.modelColorMode == .fixed {
-                ColorPicker("Teinte de \(modelName)", selection: Binding(
+                ColorPicker(tr("Teinte de \(modelName)", "\(modelName) tint"), selection: Binding(
                     get: { Color(nsColor: settings.modelFixed.nsColor) },
                     set: { settings.modelFixed = RGB(nsColor: NSColor($0)) }
                 ), supportsOpacity: false)
             }
 
-            Toggle("Simuler un usage dans les aperçus", isOn: $simulate)
+            Toggle(tr("Simuler un usage dans les aperçus", "Simulate usage in the previews"), isOn: $simulate)
             if simulate {
-                LabeledContent("Usage simulé : \(Int(simulated)) %") {
+                LabeledContent(tr("Usage simulé : \(Fmt.pct(simulated))", "Simulated usage: \(Fmt.pct(simulated))")) {
                     Slider(value: $simulated, in: 0...100, step: 1)
                 }
             }
@@ -134,10 +138,10 @@ struct SettingsView: View {
 
     private var modeHelp: String {
         switch settings.colorMode {
-        case .mono: return "L'icône prend la couleur du texte de la barre de menus."
-        case .thresholds: return "La couleur change par paliers à mesure que le quota s'épuise."
-        case .gradient: return "La couleur glisse en continu d'une teinte à l'autre à mesure que le quota s'épuise."
-        case .pace: return "La couleur suit la prévision : dans le rythme, serré, ou trop vite."
+        case .mono: return tr("L'icône prend la couleur du texte de la barre de menus.", "The icon uses the menu bar text color.")
+        case .thresholds: return tr("La couleur change par paliers à mesure que le quota s'épuise.", "The color changes in steps as the quota drains.")
+        case .gradient: return tr("La couleur glisse en continu d'une teinte à l'autre à mesure que le quota s'épuise.", "The color blends continuously from one tint to the next as the quota drains.")
+        case .pace: return tr("La couleur suit la prévision : dans le rythme, serré, ou trop vite.", "The color follows the forecast: on pace, tight, or too fast.")
         }
     }
 
@@ -170,7 +174,7 @@ struct SettingsView: View {
             }
             loginError = nil
         } catch {
-            loginError = "Impossible de changer ce réglage : \(error.localizedDescription)"
+            loginError = tr("Impossible de changer ce réglage : \(error.localizedDescription)", "Couldn't change this setting: \(error.localizedDescription)")
         }
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
@@ -194,16 +198,16 @@ private struct ScaleStrip: View {
             .frame(height: 8)
             .clipShape(Capsule())
             HStack {
-                Text("0 %")
+                Text(Fmt.pct(0))
                 Spacer()
                 Text("usage")
                 Spacer()
-                Text("100 %")
+                Text(Fmt.pct(100))
             }
             .font(.caption2)
             .foregroundStyle(.tertiary)
         }
-        .accessibilityLabel("Échelle des couleurs selon l'usage")
+        .accessibilityLabel(tr("Échelle des couleurs selon l'usage", "Color scale by usage"))
     }
 }
 

@@ -80,11 +80,11 @@ struct PanelContent: View {
             if let weekly, weekly.forecast != nil {
                 Divider().padding(.top, 16)
                 HStack {
-                    Text("Ta semaine").font(.callout).fontWeight(.medium)
+                    Text(tr("Ta semaine", "Your week")).font(.callout).fontWeight(.medium)
                     Spacer()
                     if decorative {
                         HStack(spacing: 0) {
-                            ForEach([("cum", "Cumul"), ("day", "Par jour")], id: \.0) { tag, label in
+                            ForEach([("cum", tr("Cumul", "Cumulative")), ("day", tr("Par jour", "Per day"))], id: \.0) { tag, label in
                                 Text(label)
                                     .font(.system(size: 11, weight: chartView == tag ? .medium : .regular))
                                     .padding(.horizontal, 10)
@@ -95,9 +95,9 @@ struct PanelContent: View {
                         .padding(2)
                         .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
                     } else {
-                        Picker("Vue", selection: $chartView) {
-                            Text("Cumul").tag("cum")
-                            Text("Par jour").tag("day")
+                        Picker(tr("Vue", "View"), selection: $chartView) {
+                            Text(tr("Cumul", "Cumulative")).tag("cum")
+                            Text(tr("Par jour", "Per day")).tag("day")
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
@@ -115,7 +115,7 @@ struct PanelContent: View {
             }
 
             if snapshot == nil, state == .loading || state == .idle {
-                Text("Lecture de l'usage…").foregroundStyle(.secondary).padding(.top, 12)
+                Text(tr("Lecture de l'usage…", "Reading usage…")).foregroundStyle(.secondary).padding(.top, 12)
             }
 
             if let rows = snapshot?.breakdown, !rows.isEmpty {
@@ -135,15 +135,15 @@ struct PanelContent: View {
 
             Divider().padding(.top, 12)
             HStack {
-                if decorative { fakeButton("Réglages…") } else { Button("Réglages…", action: onSettings) }
+                if decorative { fakeButton(tr("Réglages…", "Settings…")) } else { Button(tr("Réglages…", "Settings…"), action: onSettings) }
                 Spacer()
                 if let snapshot {
-                    Text("Relevé \(Fmt.ago(snapshot.fetchedAt, now: now))")
+                    Text(tr("Relevé \(Fmt.ago(snapshot.fetchedAt, now: now))", "Updated \(Fmt.ago(snapshot.fetchedAt, now: now))"))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
                 Spacer()
-                if decorative { fakeButton("Quitter") } else { Button("Quitter") { NSApp.terminate(nil) } }
+                if decorative { fakeButton(tr("Quitter", "Quit")) } else { Button(tr("Quitter", "Quit")) { NSApp.terminate(nil) } }
             }
             .controlSize(.small)
             .padding(.top, 10)
@@ -164,7 +164,7 @@ struct PanelContent: View {
             }
             Spacer()
             if let reset = weekly?.limit.resetsAt {
-                Text("réinit. dans \(Fmt.duration(reset.timeIntervalSince(now)))")
+                Text(tr("réinit. dans \(Fmt.duration(reset.timeIntervalSince(now)))", "resets in \(Fmt.duration(reset.timeIntervalSince(now)))"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -176,7 +176,7 @@ struct PanelContent: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(state == .loading)
-                .help("Actualiser")
+                .help(tr("Actualiser", "Refresh"))
             }
         }
     }
@@ -210,30 +210,30 @@ private struct HeroText: View {
     }
 
     private var headline: String {
-        if insight.limit.percent >= 100 { return "Quota épuisé" }
-        if let date = forecast.exhaustionDate { return "Quota épuisé \(Fmt.dayTime(date))" }
-        if let end = forecast.projectedEnd { return "Tu finis la semaine à \(Fmt.pct(end))" }
-        return "Trop tôt pour prévoir"
+        if insight.limit.percent >= 100 { return tr("Quota épuisé", "Quota used up") }
+        if let date = forecast.exhaustionDate { return tr("Quota épuisé \(Fmt.dayTime(date))", "Quota runs out \(Fmt.dayTime(date))") }
+        if let end = forecast.projectedEnd { return tr("Tu finis la semaine à \(Fmt.pct(end))", "You'll finish the week at \(Fmt.pct(end))") }
+        return tr("Trop tôt pour prévoir", "Too early to forecast")
     }
 
     private var detail: String {
         let left = 100 - insight.limit.percent
         let remaining = forecast.reset.timeIntervalSince(now)
         if insight.limit.percent >= 100 {
-            return "Retour \(Fmt.dayTime(forecast.reset))."
+            return tr("Retour \(Fmt.dayTime(forecast.reset)).", "Back \(Fmt.dayTime(forecast.reset)).")
         }
         let budget = remaining < 86400
-            ? "Il reste \(Fmt.points(left)) pour les \(Fmt.duration(remaining)) restantes."
+            ? tr("Il reste \(Fmt.points(left)) pour les \(Fmt.duration(remaining)) restantes.", "\(Fmt.points(left)) left for the remaining \(Fmt.duration(remaining)).")
             : nil
         if forecast.exhaustionDate != nil {
-            return "\(Fmt.points(forecast.paceDelta)) au-dessus du rythme. "
-                + (budget ?? "Limite-toi à \(Fmt.points(forecast.dailyBudget)) par jour pour tenir.")
+            return tr("\(Fmt.points(forecast.paceDelta)) au-dessus du rythme. ", "\(Fmt.points(forecast.paceDelta)) over pace. ")
+                + (budget ?? tr("Limite-toi à \(Fmt.points(forecast.dailyBudget)) par jour pour tenir.", "Keep to \(Fmt.points(forecast.dailyBudget)) a day to make it."))
         }
         if forecast.projectedEnd != nil {
-            return "\(Fmt.points(forecast.paceDelta)) de marge. "
-                + (budget ?? "Tu peux utiliser \(Fmt.points(forecast.dailyBudget)) par jour.")
+            return tr("\(Fmt.points(forecast.paceDelta)) de marge. ", "\(Fmt.points(forecast.paceDelta)) of headroom. ")
+                + (budget ?? tr("Tu peux utiliser \(Fmt.points(forecast.dailyBudget)) par jour.", "You can use \(Fmt.points(forecast.dailyBudget)) a day."))
         }
-        return "La semaine vient de commencer."
+        return tr("La semaine vient de commencer.", "The week has just started.")
     }
 }
 
@@ -278,7 +278,7 @@ private struct CadenceBar: View {
 
             if showPaceLabel, let pace = insight.forecast?.elapsedFraction {
                 GeometryReader { geo in
-                    Text("rythme")
+                    Text(tr("rythme", "pace"))
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                         .fixedSize()
@@ -299,13 +299,13 @@ private struct CadenceBar: View {
     private var message: String? {
         guard let forecast = insight.forecast else { return nil }
         if insight.limit.percent >= 100 {
-            return "Quota épuisé · retour \(Fmt.dayTime(forecast.reset))"
+            return tr("Quota épuisé · retour \(Fmt.dayTime(forecast.reset))", "Quota used up · back \(Fmt.dayTime(forecast.reset))")
         }
         if let date = forecast.exhaustionDate {
-            return "\(Fmt.points(forecast.paceDelta)) de trop · à sec \(Fmt.dayTime(date))"
+            return tr("\(Fmt.points(forecast.paceDelta)) de trop · à sec \(Fmt.dayTime(date))", "\(Fmt.points(forecast.paceDelta)) over · empty \(Fmt.dayTime(date))")
         }
         if let end = forecast.projectedEnd {
-            return "\(Fmt.points(forecast.paceDelta)) de marge · fin prévue \(Fmt.pct(end))"
+            return tr("\(Fmt.points(forecast.paceDelta)) de marge · fin prévue \(Fmt.pct(end))", "\(Fmt.points(forecast.paceDelta)) of headroom · ends at \(Fmt.pct(end))")
         }
         return nil
     }

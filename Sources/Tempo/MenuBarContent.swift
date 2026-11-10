@@ -35,7 +35,7 @@ struct MenuBarContent {
             return MenuBarContent(
                 image: image,
                 title: NSAttributedString(string: image == nil ? "–" : "", attributes: [.font: font]),
-                tooltip: "Tempo : en attente des données"
+                tooltip: tr("Tempo : en attente des données", "Tempo: waiting for data")
             )
         }
 
@@ -105,7 +105,7 @@ struct MenuBarContent {
         }
 
         let tooltip = snapshot.limits
-            .map { "\($0.label) : \(Fmt.pct($0.percent))" }
+            .map { tr("\($0.label) : \(Fmt.pct($0.percent))", "\($0.label): \(Fmt.pct($0.percent))") }
             .joined(separator: "\n")
         return MenuBarContent(image: image, title: title, tooltip: tooltip)
     }

@@ -47,11 +47,11 @@ struct CumulativeChart: View {
         VStack(alignment: .leading, spacing: 6) {
             Canvas { context, size in draw(&context, size) }
                 .frame(height: 150)
-                .accessibilityLabel("Usage cumulé de la semaine, rythme régulier et prévision")
+                .accessibilityLabel(tr("Usage cumulé de la semaine, rythme régulier et prévision", "Cumulative usage for the week, steady pace and forecast"))
             HStack(spacing: 12) {
-                LegendItem(mark: .solid, color: .primary, text: "réel")
-                LegendItem(mark: .dotted, color: .secondary, text: "rythme régulier")
-                LegendItem(mark: .dashed, color: palette.swiftColor(insight.status), text: "prévision")
+                LegendItem(mark: .solid, color: .primary, text: tr("réel", "actual"))
+                LegendItem(mark: .dotted, color: .secondary, text: tr("rythme régulier", "steady pace"))
+                LegendItem(mark: .dashed, color: palette.swiftColor(insight.status), text: tr("prévision", "forecast"))
             }
         }
     }
@@ -161,19 +161,19 @@ struct CumulativeChart: View {
 
         // Étiquettes, placées là où le graphique est vide
         context.draw(
-            Text("maintenant · \(Fmt.pct(percent))").font(.system(size: 11, weight: .medium)),
+            Text(tr("maintenant · \(Fmt.pct(percent))", "now · \(Fmt.pct(percent))")).font(.system(size: 11, weight: .medium)),
             at: CGPoint(x: min(max(X(nowU), x0 + 52), x1 - 52), y: 8)
         )
         if let date = forecast.exhaustionDate, percent < 100 {
             context.draw(
-                Text("à sec \(Fmt.dayTime(date))").font(.system(size: 11, weight: .medium)).foregroundColor(.red),
+                Text(tr("à sec \(Fmt.dayTime(date))", "empty \(Fmt.dayTime(date))")).font(.system(size: 11, weight: .medium)).foregroundColor(.red),
                 at: CGPoint(x: x1 - 3, y: y0 - 9), anchor: .trailing
             )
         } else if percent < 100, nowU < 0.9, let end = forecast.projectedEnd {
             // Sous la ligne de prévision : on descend d'autant que la ligne monte sur la largeur du texte.
             let slope = (nowPoint.y - Y(end)) / max(x1 - nowPoint.x, 1)
             context.draw(
-                Text("fin : \(Fmt.pct(end))").font(.system(size: 11, weight: .medium)).foregroundColor(color),
+                Text(tr("fin : \(Fmt.pct(end))", "end: \(Fmt.pct(end))")).font(.system(size: 11, weight: .medium)).foregroundColor(color),
                 at: CGPoint(x: x1 - 3, y: min(Y(end) + slope * 66 + 10, y0 - 9)), anchor: .trailing
             )
         }
@@ -197,11 +197,11 @@ struct DayChart: View {
         VStack(alignment: .leading, spacing: 6) {
             Canvas { context, size in draw(&context, size, days, even) }
                 .frame(height: 150)
-                .accessibilityLabel("Points utilisés par jour et budget possible pour les jours restants")
+                .accessibilityLabel(tr("Points utilisés par jour et budget possible pour les jours restants", "Points used per day and the budget still available for the remaining days"))
             HStack(spacing: 12) {
-                LegendItem(mark: .square, color: .primary, text: "utilisé")
-                LegendItem(mark: .square, color: palette.swiftColor(insight.status).opacity(0.35), text: "encore possible")
-                LegendItem(mark: .dotted, color: .secondary, text: "régulier, \(Fmt.points(even)) par jour")
+                LegendItem(mark: .square, color: .primary, text: tr("utilisé", "used"))
+                LegendItem(mark: .square, color: palette.swiftColor(insight.status).opacity(0.35), text: tr("encore possible", "still available"))
+                LegendItem(mark: .dotted, color: .secondary, text: tr("régulier, \(Fmt.points(even)) par jour", "steady, \(Fmt.points(even)) a day"))
             }
         }
     }

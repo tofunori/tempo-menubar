@@ -10,12 +10,12 @@ enum UsageError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .noCredentials: return "Connexion Claude Code introuvable dans le Trousseau."
-        case .tokenExpired: return "Connexion expirée. Ouvre Claude Code pour la renouveler."
-        case .rateLimited: return "Le service limite les demandes. Tempo espace ses essais et garde le dernier relevé."
-        case .http(let code): return "Le service d'usage a répondu \(code)."
-        case .network(let message): return "Réseau : \(message)"
-        case .decode: return "Réponse du service illisible."
+        case .noCredentials: return tr("Connexion Claude Code introuvable dans le Trousseau.", "Claude Code sign-in not found in the Keychain.")
+        case .tokenExpired: return tr("Connexion expirée. Ouvre Claude Code pour la renouveler.", "Session expired. Open Claude Code to renew it.")
+        case .rateLimited: return tr("Le service limite les demandes. Tempo espace ses essais et garde le dernier relevé.", "The service is limiting requests. Tempo is spacing out its attempts and keeping the last reading.")
+        case .http(let code): return tr("Le service d'usage a répondu \(code).", "The usage service answered \(code).")
+        case .network(let message): return tr("Réseau : \(message)", "Network: \(message)")
+        case .decode: return tr("Réponse du service illisible.", "Unreadable response from the service.")
         }
     }
 }

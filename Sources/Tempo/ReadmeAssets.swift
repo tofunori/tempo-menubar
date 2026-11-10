@@ -8,6 +8,7 @@ import SwiftUI
 enum ReadmeAssets {
     static func generate(into directory: String) {
         try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        Lang.setting = .en
         save(hero(), "\(directory)/hero.jpg")
         save(panels(), "\(directory)/panels.jpg")
         save(styles(), "\(directory)/styles.jpg")
@@ -37,14 +38,6 @@ enum ReadmeAssets {
         ]
         return (snapshot, DebugTools.fakeSamples(weekly: weekly, model: model, elapsed: elapsed, now: now))
     }
-
-    private static let englishNames: [IconStyle: String] = [
-        .dial: "Watch", .parens: "Parentheses", .arcs: "Double arc", .duo: "Duo",
-        .matrix: "Matrix", .lines: "Two lines", .monogram: "Monogram", .book: "Book",
-        .metronome: "Metronome", .week: "Week", .hourglass: "Hourglass", .moon: "Moon",
-        .battery: "Battery", .segments: "Segments", .ringNumber: "Numbered ring",
-        .ring: "Ring", .gauge: "Gauge", .bar: "Bar",
-    ]
 
     // MARK: - Outils
 
@@ -211,15 +204,10 @@ enum ReadmeAssets {
 
     /// Les dix-huit styles d'icône, par famille.
     private static func styles() -> some View {
-        let groups: [(String, StyleGroup)] = [
-            ("Weekly and model in one icon", .dual),
-            ("One value", .single),
-            ("Classics", .classic),
-        ]
         return VStack(alignment: .leading, spacing: 26) {
-            ForEach(groups, id: \.0) { title, group in
+            ForEach(StyleGroup.allCases) { group in
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(title)
+                    Text(group.title)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.white.opacity(0.65))
                     HStack(spacing: 12) {
@@ -227,7 +215,7 @@ enum ReadmeAssets {
                             VStack(spacing: 10) {
                                 Image(nsImage: icon(style, weekly: 56, model: 10, zoom: 2.4))
                                     .frame(height: 54)
-                                Text(englishNames[style] ?? style.label)
+                                Text(style.label)
                                     .font(.system(size: 12))
                                     .foregroundStyle(.white.opacity(0.85))
                             }
@@ -246,11 +234,10 @@ enum ReadmeAssets {
     /// La couleur qui change à mesure que le quota s'épuise, pour chaque palette.
     private static func colors() -> some View {
         let steps: [Double] = [5, 25, 45, 65, 85, 100]
-        let names = ["Classic", "Ember", "Ocean", "Aurora"]
         return VStack(alignment: .leading, spacing: 14) {
-            ForEach(Array(Palette.presets.enumerated()), id: \.offset) { index, preset in
+            ForEach(Palette.presets) { preset in
                 HStack(spacing: 0) {
-                    Text(names[index])
+                    Text(preset.name)
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.white.opacity(0.85))
                         .frame(width: 110, alignment: .leading)

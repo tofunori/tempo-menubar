@@ -29,6 +29,7 @@ Tempo compares what you have used with how far you are into the week, then gives
 - **A forecast.** Where you will end the week at your current rate, or the day and hour the quota runs out.
 - **A daily budget.** How many points per day you can still spend and make it to the reset.
 - **Colors that follow the quota.** Icons shift from one color to the next as the quota drains, with thresholds and colors you set.
+- **English and French.** The interface follows your system language, or the one you pick in the settings.
 
 ## The panel
 
@@ -102,7 +103,6 @@ Local files live in `~/Library/Application Support/Tempo/`: the reading history 
 - **The endpoint is rate limited.** Polling every minute got Tempo refused for more than twenty minutes during development. Tempo now polls every 15 minutes by default, never more often than every 5, keeps showing the last reading while it waits, and backs off after a refusal.
 - **Claude Code renews the token.** Tempo does not refresh it. If the token expires, the icon dims and the panel asks you to open Claude Code.
 - **The per-day view needs history.** Days before Tempo was installed appear as a smoothed ramp, because Tempo only knows the total. The view is exact from the next weekly reset on.
-- **The interface is in French.** The app was built for a French-speaking user. An English localization is not done yet.
 - **Tested on one setup.** Built and used on macOS 27 with Swift 6.4 on Apple silicon. The package targets macOS 14, but earlier versions are untested.
 - **Ad hoc signature.** The app is signed locally, without an Apple developer certificate. If macOS blocks it, right-click the app and choose Open.
 
@@ -131,6 +131,7 @@ The images in this README come from `--readme-assets`. They are drawn by the app
 | `MenuBarContent.swift`, `StatusController.swift` | The status item: icon, text, panel |
 | `PopoverView.swift`, `Charts.swift` | The panel and its two charts |
 | `SettingsView.swift`, `Settings.swift` | The settings window and what it stores |
+| `L10n.swift`, `Format.swift` | English and French text, dates and numbers |
 | `DebugTools.swift`, `ReadmeAssets.swift` | The command line flags above |
 
 ## Disclaimer
