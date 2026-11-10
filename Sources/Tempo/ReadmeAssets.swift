@@ -8,10 +8,10 @@ import SwiftUI
 enum ReadmeAssets {
     static func generate(into directory: String) {
         try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
-        save(hero(), "\(directory)/hero.png")
-        save(panels(), "\(directory)/panels.png")
-        save(styles(), "\(directory)/styles.png")
-        save(colors(), "\(directory)/colors.png")
+        save(hero(), "\(directory)/hero.jpg")
+        save(panels(), "\(directory)/panels.jpg")
+        save(styles(), "\(directory)/styles.jpg")
+        save(colors(), "\(directory)/colors.jpg")
     }
 
     // MARK: - Données de démonstration
@@ -62,8 +62,9 @@ enum ReadmeAssets {
         renderer.scale = 2
         guard let image = renderer.cgImage else { return }
         let rep = NSBitmapImageRep(cgImage: image)
-        guard let png = rep.representation(using: .png, properties: [:]) else { return }
-        try? png.write(to: URL(fileURLWithPath: path))
+        // JPEG : dix fois plus léger que le PNG pour ces fonds en dégradé, sans perte visible.
+        guard let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) else { return }
+        try? jpeg.write(to: URL(fileURLWithPath: path))
         print(path)
     }
 

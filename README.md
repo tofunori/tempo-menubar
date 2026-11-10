@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/hero.png" alt="Tempo in the macOS menu bar, with its panel open" width="100%">
+  <img src="docs/hero.jpg" alt="Tempo in the macOS menu bar, with its panel open" width="100%">
 </p>
 
 <h1 align="center">Tempo</h1>
@@ -33,7 +33,7 @@ Tempo compares what you have used with how far you are into the week, then gives
 ## The panel
 
 <p align="center">
-  <img src="docs/panels.png" alt="Three states of the Tempo panel: on pace, the per-day view, and too fast" width="100%">
+  <img src="docs/panels.jpg" alt="Three states of the Tempo panel: on pace, the per-day view, and too fast" width="100%">
 </p>
 
 Click the icon to open the panel. From top to bottom:
@@ -45,7 +45,7 @@ Click the icon to open the panel. From top to bottom:
 ## Icon styles
 
 <p align="center">
-  <img src="docs/styles.png" alt="The eighteen icon styles, grouped in three families" width="100%">
+  <img src="docs/styles.jpg" alt="The eighteen icon styles, grouped in three families" width="100%">
 </p>
 
 Eighteen styles in three families: eight that show both limits in one icon, seven that focus on one value, and three classics.
@@ -56,7 +56,7 @@ You also choose the text next to the icon: nothing, the percentage, the percenta
 ## Colors
 
 <p align="center">
-  <img src="docs/colors.png" alt="The Double arc icon from 5 % to 100 % usage in four palettes" width="100%">
+  <img src="docs/colors.jpg" alt="The Double arc icon from 5 % to 100 % usage in four palettes" width="100%">
 </p>
 
 Four color modes for the weekly limit:
