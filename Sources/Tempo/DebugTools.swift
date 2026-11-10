@@ -68,8 +68,11 @@ enum DebugTools {
     }
 
     /// Relevés fictifs qui montent par paliers, comme de vraies journées de travail.
-    static func fakeSamples(weekly: Double, model: Double, elapsed: Double, now: Date, chatgptWeekly: Double? = nil) -> [Sample] {
-        let weights = [1.3, 0.7, 1.6, 0.5, 1.1, 0.9, 1.2]
+    /// - Parameter surge: vrai pour une dernière journée beaucoup plus chargée que les autres.
+    static func fakeSamples(
+        weekly: Double, model: Double, elapsed: Double, now: Date, chatgptWeekly: Double? = nil, surge: Bool = false
+    ) -> [Sample] {
+        let weights = surge ? [0.7, 0.6, 0.8, 0.5, 3.2, 1, 1] : [1.3, 0.7, 1.6, 0.5, 1.1, 0.9, 1.2]
         func cumulative(_ x: Double) -> Double {
             let x = min(max(x, 0), 7)
             let day = min(6, Int(x))
@@ -89,11 +92,13 @@ enum DebugTools {
     }
 
     /// Données fictives des deux services.
-    static func fakeData(weekly: Double, model: Double, elapsed: Double, now: Date) -> UsageData {
+    static func fakeData(weekly: Double, model: Double, elapsed: Double, now: Date, surge: Bool = false) -> UsageData {
         UsageData(
             claude: .sample(weekly: weekly, model: model, elapsed: elapsed, now: now),
             chatgpt: .sampleChatGPT(session: weekly * 0.8, weekly: weekly * 0.5, elapsed: elapsed, now: now),
-            samples: fakeSamples(weekly: weekly, model: model, elapsed: elapsed, now: now, chatgptWeekly: weekly * 0.5)
+            samples: fakeSamples(
+                weekly: weekly, model: model, elapsed: elapsed, now: now, chatgptWeekly: weekly * 0.5, surge: surge
+            )
         )
     }
 
@@ -190,13 +195,13 @@ enum DebugTools {
     /// Dessine le panneau hors écran, dans les deux vues du graphique.
     /// - Parameter live: vrai pour utiliser le cache de Claude et les fichiers de Codex plutôt que des données fictives.
     @MainActor
-    static func panel(to path: String, over: Bool, live: Bool, focus: MetricKey) {
+    static func panel(to path: String, over: Bool, live: Bool, focus: MetricKey, surge: Bool = false) {
         let now = Date()
         var data: UsageData
         if live {
             data = UsageData(claude: UsageCache.load(), chatgpt: CodexUsage.loadLocal(now: now), samples: HistoryStore().samples)
         } else {
-            data = fakeData(weekly: over ? 81 : 56, model: over ? 34 : 10, elapsed: 0.67, now: now)
+            data = fakeData(weekly: over ? 81 : 56, model: over ? 34 : 10, elapsed: 0.67, now: now, surge: surge)
             data.claude?.breakdown = [
                 BreakdownRow(name: "Claude Code", percent: 91),
                 BreakdownRow(name: "Chats", percent: 1),

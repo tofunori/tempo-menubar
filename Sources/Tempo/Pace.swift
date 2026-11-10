@@ -20,11 +20,19 @@ struct RecentRate: Equatable {
     let gained: Double
     let spanHours: Double
     let pointsPerHour: Double
+    /// Moment où le quota tombe à zéro à ce rythme, s'il arrive avant la réinitialisation.
     let exhaustionDate: Date?
+    /// Pourcentage atteint à la réinitialisation si ce rythme continue. Nil sans réinitialisation connue.
+    let projectedEnd: Double?
 }
 
 enum PaceStatus {
     case onTrack, tight, over
+
+    /// L'état qui correspond à un pourcentage prévu en fin de fenêtre.
+    init(projectedEnd end: Double) {
+        self = end > 100 ? .over : end > 90 ? .tight : .onTrack
+    }
 
     var label: String {
         switch self {
@@ -53,9 +61,20 @@ struct LimitInsight {
     /// Vrai si, au rythme moyen, le quota s'épuise avant la réinitialisation.
     var willExhaust: Bool { forecast?.exhaustionDate != nil }
 
+    /// Écart, en points de fin de fenêtre, entre la prévision au rythme récent et celle au rythme moyen.
+    /// Positif = tu accélères. Nil si l'une des deux manque.
+    var recentDivergence: Double? {
+        guard let recentEnd = recent?.projectedEnd, let averageEnd = forecast?.projectedEnd else { return nil }
+        return min(recentEnd, 200) - min(averageEnd, 200)
+    }
+
+    /// Les deux prévisions diffèrent assez pour qu'on les montre toutes les deux.
+    static let divergenceThreshold = 8.0
+    var recentDiverges: Bool { abs(recentDivergence ?? 0) >= LimitInsight.divergenceThreshold }
+
     var status: PaceStatus {
         guard let end = forecast?.projectedEnd else { return .onTrack }
-        return end > 100 ? .over : end > 90 ? .tight : .onTrack
+        return PaceStatus(projectedEnd: end)
     }
 }
 
@@ -116,7 +135,11 @@ enum Pace {
             let date = now.addingTimeInterval((100 - current) / rate * 3600)
             if let reset, date < reset { exhaustion = date }
         }
-        return RecentRate(gained: gained, spanHours: span / 3600, pointsPerHour: rate, exhaustionDate: exhaustion)
+        let projected = reset.map { current + rate * max(0, $0.timeIntervalSince(now)) / 3600 }
+        return RecentRate(
+            gained: gained, spanHours: span / 3600, pointsPerHour: rate,
+            exhaustionDate: exhaustion, projectedEnd: projected
+        )
     }
 
     /// Courbe d'usage cumulé depuis le début de la fenêtre : (début, 0), les relevés, puis (maintenant, valeur).

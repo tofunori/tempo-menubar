@@ -52,6 +52,9 @@ struct CumulativeChart: View {
                 LegendItem(mark: .solid, color: .primary, text: tr("réel", "actual"))
                 LegendItem(mark: .dotted, color: .secondary, text: tr("rythme régulier", "steady pace"))
                 LegendItem(mark: .dashed, color: palette.swiftColor(insight.status), text: tr("prévision", "forecast"))
+                if insight.recentDiverges, let end = insight.recent?.projectedEnd {
+                    LegendItem(mark: .dotted, color: palette.swiftColor(PaceStatus(projectedEnd: end)), text: tr("rythme 24 h", "24h pace"))
+                }
             }
         }
     }
@@ -142,6 +145,21 @@ struct CumulativeChart: View {
                 projection.addLine(to: CGPoint(x: x1, y: Y(end)))
             }
             context.stroke(projection, with: .color(color), style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 4]))
+        }
+
+        // Prévision au rythme récent, quand elle s'écarte assez de la moyenne pour changer la réponse
+        if insight.recentDiverges, let recent = insight.recent, let end = recent.projectedEnd, percent < 100, nowU < 0.995 {
+            var quick = Path()
+            quick.move(to: nowPoint)
+            if let date = recent.exhaustionDate {
+                quick.addLine(to: CGPoint(x: X(U(date)), y: Y(100)))
+            } else {
+                quick.addLine(to: CGPoint(x: x1, y: Y(end)))
+            }
+            context.stroke(
+                quick, with: .color(palette.swiftColor(PaceStatus(projectedEnd: end))),
+                style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [0.5, 4])
+            )
         }
 
         // Écart au rythme, à l'instant présent

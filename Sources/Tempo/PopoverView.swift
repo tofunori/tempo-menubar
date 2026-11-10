@@ -91,6 +91,10 @@ struct PanelContent: View {
                             .foregroundStyle(.secondary)
                     }
                     HeroText(insight: hero, forecast: forecast, now: now)
+                    if hero.limit.isWeekly, let recent = hero.recent {
+                        RecentLine(insight: hero, recent: recent)
+                            .padding(.top, 8)
+                    }
                 }
                 .padding(.top, 14)
             }
@@ -246,6 +250,59 @@ struct PanelContent: View {
 }
 
 // MARK: - La réponse d'abord
+
+/// La prévision au rythme des dernières heures, à côté de celle au rythme moyen.
+/// Discrète quand les deux s'accordent, en couleur quand elles divergent.
+private struct RecentLine: View {
+    let insight: LimitInsight
+    let recent: RecentRate
+    @Environment(\.palette) private var palette
+
+    private var hours: Int { max(1, Int(recent.spanHours.rounded())) }
+    private var span: String { tr("\(hours) h", "\(hours)h") }
+
+    var body: some View {
+        let diverges = insight.recentDiverges
+        let color: Color = diverges
+            ? palette.swiftColor(PaceStatus(projectedEnd: recent.projectedEnd ?? 0))
+            : .secondary
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
+            Text(message).fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.caption)
+        .foregroundStyle(color)
+        .padding(.horizontal, diverges ? 8 : 0)
+        .padding(.vertical, diverges ? 5 : 0)
+        .background(diverges ? color.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var icon: String {
+        guard insight.recentDiverges, let divergence = insight.recentDivergence else { return "clock.arrow.circlepath" }
+        return divergence > 0 ? "arrow.up.right" : "arrow.down.right"
+    }
+
+    private var outcome: String {
+        if let date = recent.exhaustionDate {
+            return tr("À ce rythme, quota épuisé \(Fmt.dayTime(date)).", "At this rate, empty \(Fmt.dayTime(date)).")
+        }
+        if let end = recent.projectedEnd {
+            return tr("À ce rythme, fin à \(Fmt.pct(end)).", "At this rate, you'll end at \(Fmt.pct(end)).")
+        }
+        return ""
+    }
+
+    private var message: String {
+        let gained = "+\(Fmt.points(recent.gained))"
+        guard insight.recentDiverges, let divergence = insight.recentDivergence else {
+            return tr("Dernières \(span) : \(gained), même tendance.", "Last \(span): \(gained), same trend.")
+        }
+        if divergence > 0 {
+            return tr("Tu accélères : \(gained) sur les dernières \(span). ", "You're speeding up: \(gained) over the last \(span). ") + outcome
+        }
+        return tr("Tu ralentis : \(gained) sur les dernières \(span). ", "You're slowing down: \(gained) over the last \(span). ") + outcome
+    }
+}
 
 private struct HeroText: View {
     let insight: LimitInsight

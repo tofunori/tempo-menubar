@@ -31,8 +31,8 @@ enum ReadmeAssets {
     private static let elapsed = 0.67
 
     /// - Parameter chatgpt: vrai pour ajouter les limites de Codex aux données.
-    private static func scene(_ weekly: Double, _ model: Double, chatgpt: Bool = true) -> UsageData {
-        var data = DebugTools.fakeData(weekly: weekly, model: model, elapsed: elapsed, now: now)
+    private static func scene(_ weekly: Double, _ model: Double, chatgpt: Bool = true, surge: Bool = false) -> UsageData {
+        var data = DebugTools.fakeData(weekly: weekly, model: model, elapsed: elapsed, now: now, surge: surge)
         data.claude?.breakdown = [
             BreakdownRow(name: "Claude Code", percent: 91),
             BreakdownRow(name: "Chats", percent: 1),
@@ -187,12 +187,12 @@ enum ReadmeAssets {
         .frame(width: 1280, height: 650, alignment: .topLeading)
     }
 
-    /// Trois états du panneau : dans le rythme, les deux services ensemble, et trop vite.
+    /// Trois états du panneau : dans le rythme, les deux services ensemble, et une accélération récente.
     private static func panels() -> some View {
         HStack(alignment: .top, spacing: 28) {
             panel(scene(56, 10, chatgpt: false), view: "cum")
             panel(scene(56, 10), view: "day")
-            panel(scene(81, 34, chatgpt: false), view: "cum")
+            panel(scene(81, 34, chatgpt: false, surge: true), view: "cum")
         }
         .padding(44)
         .background(backdrop)

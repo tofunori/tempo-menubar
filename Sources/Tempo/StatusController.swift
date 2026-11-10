@@ -103,6 +103,12 @@ final class StatusController: NSObject {
         return item
     }
 
+    /// Ouvre le panneau sous la première icône, par exemple depuis une notification.
+    func showPanel() {
+        guard !popover.isShown, let button = items.lazy.compactMap({ $0?.button }).first else { return }
+        togglePopover(button)
+    }
+
     @objc private func togglePopover(_ sender: NSStatusBarButton) {
         if popover.isShown {
             popover.performClose(nil)

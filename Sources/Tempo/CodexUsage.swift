@@ -18,11 +18,12 @@ enum CodexUsage {
     private static let lock = NSLock()
 
     /// Le relevé le plus récent, ou nil si Codex n'a pas tourné sur ce Mac dans les huit derniers jours.
-    static func loadLocal(now: Date = Date()) -> UsageSnapshot? {
+    /// - Parameter root: le dossier des sessions ; celui de Codex par défaut, un autre pour les tests.
+    static func loadLocal(now: Date = Date(), root: URL? = nil) -> UsageSnapshot? {
         lock.lock()
         defer { lock.unlock() }
 
-        let files = recentSessionFiles(since: now.addingTimeInterval(-8 * 86400), limit: 80)
+        let files = recentSessionFiles(in: root ?? sessionsRoot, since: now.addingTimeInterval(-8 * 86400), limit: 80)
         var best: Reading?
         for file in files {
             let reading: Reading?
@@ -35,8 +36,10 @@ enum CodexUsage {
             // Plusieurs sessions peuvent être modifiées en même temps : c'est l'heure du relevé qui compte.
             if let reading, reading.stamp > (best?.stamp ?? .distantPast) { best = reading }
         }
-        let known = Set(files.map(\.url.path))
-        cache = cache.filter { known.contains($0.key) }
+        if root == nil {
+            let known = Set(files.map(\.url.path))
+            cache = cache.filter { known.contains($0.key) }
+        }
 
         guard let best else { return nil }
         let limits = best.windows.compactMap { limit(from: $0, readAt: best.stamp, now: now) }
@@ -44,9 +47,9 @@ enum CodexUsage {
         return UsageSnapshot(limits: limits, weeklyWindowStart: nil, breakdown: [], fetchedAt: best.stamp)
     }
 
-    private static func recentSessionFiles(since: Date, limit: Int) -> [(url: URL, modified: Date)] {
+    private static func recentSessionFiles(in root: URL, since: Date, limit: Int) -> [(url: URL, modified: Date)] {
         guard let walker = FileManager.default.enumerator(
-            at: sessionsRoot, includingPropertiesForKeys: [.contentModificationDateKey],
+            at: root, includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles]
         ) else { return [] }
 

@@ -228,6 +228,7 @@ final class Settings: ObservableObject {
     @Published var showPace: Bool { didSet { defaults.set(showPace, forKey: "showPace") } }
     @Published var showRemaining: Bool { didSet { defaults.set(showRemaining, forKey: "showRemaining") } }
     @Published var refreshMinutes: Int { didSet { defaults.set(refreshMinutes, forKey: "refreshMinutes") } }
+    @Published var alerts: AlertSettings { didSet { saveAlerts() } }
     @Published var language: AppLanguage {
         didSet {
             defaults.set(language.rawValue, forKey: "language")
@@ -267,6 +268,7 @@ final class Settings: ObservableObject {
 
         showPace = d.object(forKey: "showPace") as? Bool ?? base.showPace
         showRemaining = d.object(forKey: "showRemaining") as? Bool ?? base.showRemaining
+        alerts = Settings.loadAlerts(from: d)
         let minutes = d.integer(forKey: "refreshMinutes")
         // Le service refuse les demandes trop rapprochées : jamais plus souvent qu'aux 5 minutes.
         refreshMinutes = minutes >= 5 ? minutes : 15
@@ -312,6 +314,28 @@ final class Settings: ObservableObject {
             item.scale = min(max(scale, ItemConfig.scaleRange.lowerBound), ItemConfig.scaleRange.upperBound)
         }
         return item
+    }
+
+    // MARK: - Alertes
+
+    private static func loadAlerts(from d: UserDefaults) -> AlertSettings {
+        var a = AlertSettings()
+        if let v = d.object(forKey: "alerts.enabled") as? Bool { a.enabled = v }
+        if let v = d.object(forKey: "alerts.thresholdsOn") as? Bool { a.thresholdsOn = v }
+        if let v = d.object(forKey: "alerts.first") as? Double { a.firstThreshold = v }
+        if let v = d.object(forKey: "alerts.second") as? Double { a.secondThreshold = v }
+        if let v = d.object(forKey: "alerts.runOut") as? Bool { a.runOut = v }
+        if let raw = d.stringArray(forKey: "alerts.watched") { a.watched = Set(raw.compactMap(MetricKey.init(rawValue:))) }
+        return a
+    }
+
+    private func saveAlerts() {
+        defaults.set(alerts.enabled, forKey: "alerts.enabled")
+        defaults.set(alerts.thresholdsOn, forKey: "alerts.thresholdsOn")
+        defaults.set(alerts.firstThreshold, forKey: "alerts.first")
+        defaults.set(alerts.secondThreshold, forKey: "alerts.second")
+        defaults.set(alerts.runOut, forKey: "alerts.runOut")
+        defaults.set(alerts.watched.map(\.rawValue).sorted(), forKey: "alerts.watched")
     }
 
     private func saveItems() {

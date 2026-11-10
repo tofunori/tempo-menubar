@@ -26,7 +26,8 @@ if let index = arguments.firstIndex(of: "--panel"), arguments.count > index + 1 
         // « live » dessine les vraies données en cache ; « chatgpt » met en avant l'hebdo de ChatGPT.
         DebugTools.panel(
             to: arguments[index + 1], over: arguments.contains("over"), live: arguments.contains("live"),
-            focus: arguments.contains("chatgpt") ? .chatgptWeekly : .claudeWeekly
+            focus: arguments.contains("chatgpt") ? .chatgptWeekly : .claudeWeekly,
+            surge: arguments.contains("surge")
         )
     }
     exit(0)

@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var settings: Settings
     @ObservedObject var store: UsageStore
+    @ObservedObject var alerts: AlertCenter
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
     /// L'icône qu'on est en train de régler.
@@ -34,6 +35,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             iconSection
+            alertSection
             colorSection
 
             Section(tr("Affichage", "Display")) {
@@ -168,6 +170,73 @@ struct SettingsView: View {
         default:
             return tr("Pas encore de chiffre pour cette valeur.", "No figure for this value yet.")
         }
+    }
+
+    // MARK: - Alertes
+
+    @ViewBuilder
+    private var alertSection: some View {
+        Section(tr("Alertes", "Alerts")) {
+            Toggle(tr("Envoyer des alertes", "Send alerts"), isOn: $settings.alerts.enabled)
+                .onChange(of: settings.alerts.enabled) { _, on in
+                    if on { Task { await alerts.requestPermission() } }
+                }
+
+            if settings.alerts.enabled {
+                Toggle(tr("Quand l'usage franchit un seuil", "When usage crosses a threshold"), isOn: $settings.alerts.thresholdsOn)
+                if settings.alerts.thresholdsOn {
+                    Picker(tr("Premier seuil", "First threshold"), selection: $settings.alerts.firstThreshold) {
+                        ForEach(AlertSettings.thresholdChoices, id: \.self) { Text(Fmt.pct($0)).tag($0) }
+                    }
+                    Picker(tr("Deuxième seuil", "Second threshold"), selection: $settings.alerts.secondThreshold) {
+                        ForEach(AlertSettings.thresholdChoices, id: \.self) { Text(Fmt.pct($0)).tag($0) }
+                    }
+                    Text(tr("Une alerte part aussi quand un quota est épuisé.", "An alert also goes out when a quota is used up."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Toggle(
+                    tr("Quand tu vas manquer de quota avant la réinitialisation", "When you will run out before the reset"),
+                    isOn: $settings.alerts.runOut
+                )
+
+                LabeledContent(tr("Valeurs surveillées", "Values watched")) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(MetricKey.allCases) { key in
+                            Toggle(key.label(modelName: modelName), isOn: Binding(
+                                get: { settings.alerts.watched.contains(key) },
+                                set: { on in
+                                    if on { settings.alerts.watched.insert(key) } else { settings.alerts.watched.remove(key) }
+                                }
+                            ))
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                }
+
+                HStack {
+                    Button(tr("Envoyer une alerte d'essai", "Send a test alert")) {
+                        Task { await alerts.sendTest() }
+                    }
+                    Spacer()
+                    if alerts.permission == .denied {
+                        Button(tr("Ouvrir les réglages de notifications", "Open notification settings")) {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
+                if alerts.permission == .denied {
+                    Text(tr(
+                        "macOS bloque les notifications de Tempo. Autorise-les dans Réglages Système, section Notifications.",
+                        "macOS is blocking Tempo's notifications. Allow them in System Settings, under Notifications."
+                    ))
+                    .font(.caption).foregroundStyle(.orange)
+                }
+            }
+        }
+        .task { await alerts.refreshPermission() }
     }
 
     // MARK: - Couleurs
