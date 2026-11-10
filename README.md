@@ -73,6 +73,7 @@ Eighteen styles in three families: eight that show two values in one icon, seven
 The settings window shows every style as a live preview with your own numbers.
 
 You also choose the text next to the icon: nothing, the percentage, the percentage with the gap to the steady pace, the gap alone, or the forecast.
+Each icon has a size setting, from 70 % to 130 %, that scales the drawing and its text together. The drawing stops growing when it reaches the height of the menu bar.
 
 ## Colors
 

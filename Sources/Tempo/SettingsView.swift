@@ -102,6 +102,17 @@ struct SettingsView: View {
                 ForEach(BarText.allCases) { Text($0.label).tag($0) }
             }
 
+            LabeledContent(tr("Grosseur : \(Fmt.pct(settings.items[selected].scale * 100))", "Size: \(Fmt.pct(settings.items[selected].scale * 100))")) {
+                HStack(spacing: 8) {
+                    Image(systemName: "circle.fill").font(.system(size: 6)).foregroundStyle(.secondary)
+                    Slider(value: $settings.items[selected].scale, in: ItemConfig.scaleRange, step: 0.05)
+                    Image(systemName: "circle.fill").font(.system(size: 12)).foregroundStyle(.secondary)
+                    Button(tr("Normale", "Reset")) { settings.items[selected].scale = 1 }
+                        .controlSize(.small)
+                        .disabled(settings.items[selected].scale == 1)
+                }
+            }
+
             StyleGallery(settings: settings, index: selected, data: previewData)
         }
     }

@@ -14,7 +14,8 @@ if arguments.contains("--dump") {
 }
 
 if let index = arguments.firstIndex(of: "--icons"), arguments.count > index + 1 {
-    DebugTools.iconSheet(to: arguments[index + 1])
+    let iconScale = arguments.count > index + 2 ? Double(arguments[index + 2]) ?? 1 : 1
+    DebugTools.iconSheet(to: arguments[index + 1], iconScale: iconScale)
     exit(0)
 }
 

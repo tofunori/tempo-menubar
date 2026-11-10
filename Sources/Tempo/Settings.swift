@@ -186,6 +186,11 @@ struct ItemConfig: Equatable {
     /// Deuxième valeur, pour les styles qui en montrent deux. Nil = une seule valeur.
     var secondary: MetricKey? = .claudeModel
     var barText: BarText = .percent
+    /// Grosseur de l'icône et de son texte : 1 = taille normale.
+    var scale = 1.0
+
+    /// Bornes de la grosseur. Au-delà, l'icône dépasse de la barre de menus.
+    static let scaleRange = 0.7...1.3
 }
 
 /// Tout ce qui décide de l'apparence d'une icône : sa configuration, plus les réglages communs.
@@ -194,6 +199,7 @@ struct DisplayOptions: Equatable {
     var primary: MetricKey = .claudeWeekly
     var secondary: MetricKey? = .claudeModel
     var barText: BarText = .percent
+    var scale = 1.0
     var colorMode: ColorMode = .mono
     var palette = Palette()
     /// Donne à la deuxième valeur sa propre couleur, pour la distinguer de la première.
@@ -271,7 +277,7 @@ final class Settings: ObservableObject {
         let item = items[index]
         return DisplayOptions(
             iconStyle: item.iconStyle, primary: item.primary, secondary: item.secondary, barText: item.barText,
-            colorMode: colorMode, palette: palette, modelColorMode: modelColorMode, modelFixed: modelFixed,
+            scale: item.scale, colorMode: colorMode, palette: palette, modelColorMode: modelColorMode, modelFixed: modelFixed,
             showPace: showPace, showRemaining: showRemaining
         )
     }
@@ -302,6 +308,9 @@ final class Settings: ObservableObject {
         if let raw = d.string(forKey: prefix + "secondary") { item.secondary = MetricKey(rawValue: raw) }
         if let text = d.string(forKey: prefix + "text").flatMap(BarText.init(rawValue:)) { item.barText = text }
         if index > 0, let enabled = d.object(forKey: prefix + "enabled") as? Bool { item.enabled = enabled }
+        if let scale = d.object(forKey: prefix + "scale") as? Double {
+            item.scale = min(max(scale, ItemConfig.scaleRange.lowerBound), ItemConfig.scaleRange.upperBound)
+        }
         return item
     }
 
@@ -313,6 +322,7 @@ final class Settings: ObservableObject {
             defaults.set(item.secondary?.rawValue ?? "none", forKey: prefix + "secondary")
             defaults.set(item.barText.rawValue, forKey: prefix + "text")
             defaults.set(item.enabled, forKey: prefix + "enabled")
+            defaults.set(item.scale, forKey: prefix + "scale")
         }
     }
 }

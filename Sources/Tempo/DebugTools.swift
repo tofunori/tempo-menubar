@@ -4,7 +4,7 @@ import SwiftUI
 /// Outils de vérification en ligne de commande, sans ouvrir l'app :
 ///   Tempo --dump                  lit l'usage des deux services, affiche limites, cadence et texte de la barre
 ///   Tempo --dump local            même chose sans appeler le service de Claude (cache et fichiers locaux)
-///   Tempo --icons out.png         dessine une planche de tous les styles d'icône
+///   Tempo --icons out.png [1.3]   dessine une planche de tous les styles d'icône, à la grosseur donnée
 ///   Tempo --panel out.png [over]  dessine le panneau (vues Cumul et Par jour) avec des données fictives
 enum DebugTools {
     static func dump(localOnly: Bool) async {
@@ -97,7 +97,8 @@ enum DebugTools {
         )
     }
 
-    static func iconSheet(to path: String) {
+    /// - Parameter iconScale: la grosseur des réglages à essayer (1 = normale).
+    static func iconSheet(to path: String, iconScale: Double = 1) {
         let styles = IconStyle.allCases.filter { $0 != .none }
         let cases: [(weekly: Double, model: Double, elapsed: Double)] = [(8, 3, 0.15), (56, 10, 0.67), (92, 60, 0.80)]
         // Monochrome, puis dégradé avec deuxième valeur en couleur fixe, puis selon son usage.
@@ -141,6 +142,7 @@ enum DebugTools {
                             options.iconStyle = style
                             options.colorMode = variant.mode
                             options.modelColorMode = variant.model
+                            options.scale = iconScale
                             let content = MenuBarContent.make(data: data, options: options, now: now)
                             draw(content, at: NSPoint(x: 92 + CGFloat(column) * cell.width, y: y), cellHeight: cell.height)
                             column += 1

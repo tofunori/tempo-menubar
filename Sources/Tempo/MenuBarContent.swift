@@ -6,11 +6,27 @@ struct MenuBarContent {
     let title: NSAttributedString
     let tooltip: String
 
-    static let font = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .medium)
+    /// La police du texte de la barre, à la grosseur choisie pour l'icône.
+    static func font(_ scale: CGFloat = 1) -> NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: 12.5 * scale, weight: .medium)
+    }
 
-    /// - Parameter zoom: 1 = taille de la barre de menus ; plus grand pour les aperçus des réglages.
-    static func make(data: UsageData, options: DisplayOptions, now: Date, zoom: CGFloat = 1) -> MenuBarContent {
+    /// Dessine l'icône à la grosseur demandée, sans la laisser dépasser de la barre de menus.
+    private static func icon(_ style: IconStyle, _ input: IconInput, zoom: CGFloat, fitMenuBar: Bool) -> NSImage? {
+        guard let image = IconRenderer.image(style: style, input: input, zoom: zoom) else { return nil }
+        let limit = NSStatusBar.system.thickness - 2
+        guard fitMenuBar, image.size.height > limit else { return image }
+        return IconRenderer.image(style: style, input: input, zoom: zoom * limit / image.size.height)
+    }
+
+    /// - Parameter zoom: nil = taille de la barre de menus, à la grosseur des réglages ;
+    ///   une valeur fixe pour les aperçus, qui ignorent la grosseur.
+    static func make(data: UsageData, options: DisplayOptions, now: Date, zoom fixedZoom: CGFloat? = nil) -> MenuBarContent {
         let style = options.iconStyle
+        let scale = CGFloat(options.scale)
+        let zoom = fixedZoom ?? scale
+        let fitMenuBar = fixedZoom == nil
+        let font = Self.font(fixedZoom == nil ? scale : 1)
 
         // Les deux valeurs de l'icône. La deuxième est ignorée si elle répète la première.
         let first = data.insight(options.primary, now: now)
@@ -20,7 +36,7 @@ struct MenuBarContent {
         guard let first else {
             // Pas encore de données pour la valeur choisie : icône vide.
             let input = IconInput(primary: 0, secondary: style.isDual && secondKey != nil ? 0 : nil, elapsed: nil)
-            let image = IconRenderer.image(style: style, input: input, zoom: zoom)
+            let image = icon(style, input, zoom: zoom, fitMenuBar: fitMenuBar)
             return MenuBarContent(
                 image: image,
                 title: NSAttributedString(string: image == nil ? "–" : "", attributes: [.font: font]),
@@ -44,7 +60,7 @@ struct MenuBarContent {
             days: style == .week ? Pace.dailyUsage(for: first, samples: data.samples, now: now) : [],
             template: !colored
         )
-        let image = IconRenderer.image(style: style, input: input, zoom: zoom)
+        let image = icon(style, input, zoom: zoom, fitMenuBar: fitMenuBar)
 
         var mode = options.barText
         if image == nil, mode == .none { mode = .percent }

@@ -62,12 +62,13 @@ final class StatusController: NSObject {
             items[index] = item
             guard let button = item.button else { continue }
 
-            let content = MenuBarContent.make(data: data, options: settings.options(for: index), now: now)
+            let options = settings.options(for: index)
+            let content = MenuBarContent.make(data: data, options: options, now: now)
             button.image = content.image
             button.imagePosition = content.title.length == 0 ? .imageOnly : .imageLeading
             let title = NSMutableAttributedString()
             if content.image != nil, content.title.length > 0 {
-                title.append(NSAttributedString(string: " ", attributes: [.font: MenuBarContent.font]))
+                title.append(NSAttributedString(string: " ", attributes: [.font: MenuBarContent.font(CGFloat(options.scale))]))
             }
             title.append(content.title)
             button.attributedTitle = title
