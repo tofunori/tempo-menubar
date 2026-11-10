@@ -33,6 +33,13 @@ if let index = arguments.firstIndex(of: "--panel"), arguments.count > index + 1 
     exit(0)
 }
 
+if let index = arguments.firstIndex(of: "--app-icon"), arguments.count > index + 1 {
+    MainActor.assumeIsolated {
+        AppIconArt.write(to: arguments[index + 1])
+    }
+    exit(0)
+}
+
 if let index = arguments.firstIndex(of: "--readme-assets"), arguments.count > index + 1 {
     MainActor.assumeIsolated {
         ReadmeAssets.generate(into: arguments[index + 1])

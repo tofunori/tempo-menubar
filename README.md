@@ -2,6 +2,10 @@
   <img src="docs/hero.jpg" alt="Tempo in the macOS menu bar, with its panel open" width="100%">
 </p>
 
+<p align="center">
+  <img src="docs/icon.png" alt="Tempo app icon" width="128">
+</p>
+
 <h1 align="center">Tempo</h1>
 
 <p align="center">
@@ -199,6 +203,7 @@ The images in this README come from `--readme-assets`. They are drawn by the app
 | `SettingsView.swift`, `Settings.swift` | The settings window and what it stores |
 | `L10n.swift`, `Format.swift` | English and French text, dates and numbers |
 | `DebugTools.swift`, `ReadmeAssets.swift` | The command line flags above |
+| `AppIconArt.swift`, `make-icon.sh` | The app icon, drawn in code and turned into `AppIcon.icns` |
 | `Tests/TempoTests` | Unit tests |
 
 ## Disclaimer
