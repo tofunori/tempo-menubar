@@ -20,7 +20,7 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$APP"
 
 ZIP="dist/Tempo-$VERSION.zip"
-ditto -c -k --keepParent "$APP" "$ZIP"
+ditto -c -k --norsrc --noextattr --keepParent "$APP" "$ZIP"
 
 echo "Architectures : $(lipo -archs "$APP/Contents/MacOS/Tempo")"
 echo "$ZIP"
