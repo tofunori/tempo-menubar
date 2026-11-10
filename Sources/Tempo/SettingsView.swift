@@ -6,43 +6,37 @@ struct SettingsView: View {
     @ObservedObject var store: UsageStore
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
+    /// L'icône qu'on est en train de régler.
+    @State private var selected = 0
     /// Simulateur : remplace les vrais chiffres dans les aperçus, pour voir les couleurs changer.
     @State private var simulate = false
     @State private var simulated = 50.0
 
-    private var modelName: String { store.snapshot?.modelName ?? "Fable" }
+    private var modelName: String { store.data.modelName }
 
-    /// Le relevé que montrent les aperçus : le vrai, ou celui du simulateur.
-    private var previewSnapshot: UsageSnapshot {
+    /// Les données que montrent les aperçus : les vraies, ou celles du simulateur.
+    private var previewData: UsageData {
         let now = Date()
         if simulate {
-            // Le modèle suit à 60 % de l'hebdo, pour que les deux valeurs bougent ensemble.
-            return UsageSnapshot.sample(weekly: simulated, model: simulated * 0.6, elapsed: 0.67, now: now)
+            // Les autres valeurs suivent à des fractions de la première, pour que tout bouge ensemble.
+            return UsageData(
+                claude: .sample(weekly: simulated, model: simulated * 0.6, elapsed: 0.67, now: now),
+                chatgpt: .sampleChatGPT(session: simulated * 0.8, weekly: simulated * 0.5, elapsed: 0.67, now: now)
+            )
         }
-        return store.snapshot ?? UsageSnapshot.sample(weekly: 56, model: 10, elapsed: 0.67, now: now)
+        // Sans relevé réel, un exemple tient lieu d'aperçu.
+        var data = store.data
+        if data.claude == nil { data.claude = .sample(weekly: 56, model: 10, elapsed: 0.67, now: now) }
+        if data.chatgpt == nil { data.chatgpt = .sampleChatGPT(session: 35, weekly: 22, elapsed: 0.67, now: now) }
+        return data
     }
 
     var body: some View {
         Form {
-            Section(tr("Style de l'icône", "Icon style")) {
-                StyleGallery(settings: settings, snapshot: previewSnapshot, samples: simulate ? [] : store.samples)
-            }
-
+            iconSection
             colorSection
 
             Section(tr("Affichage", "Display")) {
-                Picker(tr("Donnée", "Value"), selection: $settings.metric) {
-                    Text(tr("Hebdo + \(modelName)", "Weekly + \(modelName)")).tag(Metric.both)
-                    Text(tr("Hebdo", "Weekly")).tag(Metric.weekly)
-                    Text(modelName).tag(Metric.model)
-                }
-                .pickerStyle(.segmented)
-                .disabled(settings.iconStyle.isDual)
-
-                Picker(tr("Texte", "Text"), selection: $settings.barText) {
-                    ForEach(BarText.allCases) { Text($0.label).tag($0) }
-                }
-
                 Toggle(tr("Repère de rythme sur l'icône", "Pace marker on the icon"), isOn: $settings.showPace)
                 Toggle(tr("Afficher le restant plutôt que l'utilisé", "Show what is left instead of what is used"), isOn: $settings.showRemaining)
             }
@@ -68,7 +62,78 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 540, height: 760)
+        .frame(width: 540, height: 780)
+    }
+
+    // MARK: - Icônes
+
+    @ViewBuilder
+    private var iconSection: some View {
+        Section(tr("Icônes de la barre de menus", "Menu bar icons")) {
+            Picker(tr("Icône à régler", "Icon to set up"), selection: $selected) {
+                ForEach(settings.items.indices, id: \.self) { index in
+                    Text(tr("Icône \(index + 1)", "Icon \(index + 1)")).tag(index)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if selected > 0 {
+                Toggle(tr("Afficher cette icône", "Show this icon"), isOn: $settings.items[selected].enabled)
+            }
+
+            Picker(tr("Première valeur", "First value"), selection: $settings.items[selected].primary) {
+                ForEach(MetricKey.allCases) { key in
+                    Text(key.label(modelName: modelName)).tag(key)
+                }
+            }
+
+            Picker(tr("Deuxième valeur", "Second value"), selection: $settings.items[selected].secondary) {
+                Text(tr("Aucune", "None")).tag(MetricKey?.none)
+                ForEach(MetricKey.allCases) { key in
+                    Text(key.label(modelName: modelName)).tag(MetricKey?.some(key))
+                }
+            }
+
+            if let note = availabilityNote {
+                Text(note).font(.caption).foregroundStyle(.secondary)
+            }
+
+            Picker(tr("Texte", "Text"), selection: $settings.items[selected].barText) {
+                ForEach(BarText.allCases) { Text($0.label).tag($0) }
+            }
+
+            StyleGallery(settings: settings, index: selected, data: previewData)
+        }
+    }
+
+    /// Dit pourquoi une valeur choisie n'a pas de chiffre, s'il y a lieu.
+    private var availabilityNote: String? {
+        let item = settings.items[selected]
+        let keys = [item.primary] + (item.secondary.map { [$0] } ?? [])
+        let missing = keys.filter { store.data.limit($0) == nil }
+        guard let key = missing.first else {
+            if !settings.items[selected].iconStyle.isDual, settings.items[selected].iconStyle.group == .single, item.secondary != nil {
+                return tr(
+                    "Ce style ne dessine que la première valeur. La deuxième apparaît dans le texte.",
+                    "This style draws only the first value. The second one appears in the text."
+                )
+            }
+            return nil
+        }
+        switch key {
+        case .chatgptSession, .chatgptWeekly:
+            return tr(
+                "Aucun chiffre ChatGPT : Tempo les lit dans les sessions de Codex sur ce Mac, et n'en trouve pas.",
+                "No ChatGPT figures: Tempo reads them from Codex sessions on this Mac and finds none."
+            )
+        case .claudeSession:
+            return tr(
+                "Ton forfait Claude n'expose pas de fenêtre de 5 heures en ce moment.",
+                "Your Claude plan exposes no 5-hour window right now."
+            )
+        default:
+            return tr("Pas encore de chiffre pour cette valeur.", "No figure for this value yet.")
+        }
     }
 
     // MARK: - Couleurs
@@ -78,7 +143,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var colorSection: some View {
         Section(tr("Couleurs", "Colors")) {
-            Picker(tr("Couleur de l'hebdo", "Weekly color"), selection: $settings.colorMode) {
+            Picker(tr("Première valeur", "First value"), selection: $settings.colorMode) {
                 ForEach(ColorMode.allCases) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
@@ -117,11 +182,11 @@ struct SettingsView: View {
                 }
             }
 
-            Picker(tr("Couleur de \(modelName)", "\(modelName) color"), selection: $settings.modelColorMode) {
+            Picker(tr("Deuxième valeur", "Second value"), selection: $settings.modelColorMode) {
                 ForEach(ModelColorMode.allCases) { Text($0.label).tag($0) }
             }
             if settings.modelColorMode == .fixed {
-                ColorPicker(tr("Teinte de \(modelName)", "\(modelName) tint"), selection: Binding(
+                ColorPicker(tr("Teinte de la deuxième valeur", "Second value tint"), selection: Binding(
                     get: { Color(nsColor: settings.modelFixed.nsColor) },
                     set: { settings.modelFixed = RGB(nsColor: NSColor($0)) }
                 ), supportsOpacity: false)
@@ -214,8 +279,8 @@ private struct ScaleStrip: View {
 /// Galerie des styles : chaque case montre l'icône telle qu'elle sortira avec les réglages courants.
 private struct StyleGallery: View {
     @ObservedObject var settings: Settings
-    let snapshot: UsageSnapshot
-    let samples: [Sample]
+    let index: Int
+    let data: UsageData
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
@@ -237,21 +302,21 @@ private struct StyleGallery: View {
     }
 
     private func cell(_ style: IconStyle, _ now: Date) -> some View {
-        let selected = settings.iconStyle == style
-        var options = settings.options
+        let selected = settings.items[index].iconStyle == style
+        var options = settings.options(for: index)
         options.iconStyle = style
         options.barText = .none
-        let preview = MenuBarContent.make(snapshot: snapshot, samples: samples, options: options, now: now, zoom: 1.6)
+        let preview = MenuBarContent.make(data: data, options: options, now: now, zoom: 1.6)
 
         return Button {
-            settings.iconStyle = style
+            settings.items[index].iconStyle = style
         } label: {
             VStack(spacing: 6) {
                 Group {
                     if let image = preview.image {
                         Image(nsImage: image)
                     } else {
-                        Text(Fmt.pct(snapshot.weekly?.percent ?? 0))
+                        Text(Fmt.pct(data.limit(options.primary)?.percent ?? 0))
                             .font(.system(size: 15, weight: .medium)).monospacedDigit()
                     }
                 }

@@ -23,13 +23,15 @@ extension Palette {
 struct PopoverView: View {
     @ObservedObject var store: UsageStore
     @ObservedObject var settings: Settings
+    /// La valeur principale de l'icône sur laquelle on a cliqué.
+    let focus: MetricKey
     let openSettings: () -> Void
     @AppStorage("chartView") private var chartView = "cum"
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             PanelContent(
-                snapshot: store.snapshot, samples: store.samples, state: store.state,
+                data: store.data, focus: focus, state: store.state,
                 now: context.date, chartView: $chartView,
                 onRefresh: { Task { await store.refresh() } },
                 onSettings: openSettings
@@ -43,8 +45,8 @@ struct PopoverView: View {
 
 /// Le contenu du panneau, sans dépendance à l'app : on peut le dessiner hors écran pour le vérifier.
 struct PanelContent: View {
-    let snapshot: UsageSnapshot?
-    let samples: [Sample]
+    let data: UsageData
+    let focus: MetricKey
     let state: UsageStore.State
     let now: Date
     @Binding var chartView: String
@@ -55,32 +57,58 @@ struct PanelContent: View {
     var decorative = false
     @Environment(\.palette) private var palette
 
-    private var insights: [LimitInsight] {
-        guard let snapshot else { return [] }
-        return snapshot.limits.map { Pace.insight(for: $0, in: snapshot, samples: samples, now: now) }
+    /// Vrai quand les deux services ont des données : on nomme alors chaque bloc.
+    private var showsBoth: Bool { data.claude != nil && data.chatgpt != nil }
+
+    /// La valeur mise en avant : celle de l'icône cliquée si elle a une prévision, sinon la première qui en a une.
+    private var hero: LimitInsight? {
+        if let chosen = data.insight(focus, now: now), chosen.forecast != nil { return chosen }
+        return MetricKey.allCases.lazy
+            .compactMap { data.insight($0, now: now) }
+            .first { $0.forecast != nil }
+    }
+
+    /// Le graphique demande une fenêtre de plusieurs jours.
+    private func charted(_ hero: LimitInsight?) -> LimitInsight? {
+        if let hero, hero.limit.isWeekly { return hero }
+        return [MetricKey.claudeWeekly, .chatgptWeekly].lazy
+            .compactMap { data.insight($0, now: now) }
+            .first { $0.forecast != nil }
     }
 
     var body: some View {
-        let all = insights
-        let weekly = all.first { $0.limit.kind == .weeklyAll }
+        let hero = self.hero
+        let chart = charted(hero)
 
         VStack(alignment: .leading, spacing: 0) {
-            header(weekly)
+            header(hero)
 
-            if let weekly, let forecast = weekly.forecast {
-                HeroText(insight: weekly, forecast: forecast, now: now)
-                    .padding(.top, 14)
+            if let hero, let forecast = hero.forecast {
+                VStack(alignment: .leading, spacing: 2) {
+                    if showsBoth, let key = hero.limit.key {
+                        Text(key.label(modelName: data.modelName))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    HeroText(insight: hero, forecast: forecast, now: now)
+                }
+                .padding(.top, 14)
             }
 
-            ForEach(Array(all.enumerated()), id: \.element.limit.id) { index, insight in
-                CadenceBar(insight: insight, showPaceLabel: index == 0)
-                    .padding(.top, 16)
+            ForEach(Provider.allCases) { provider in
+                let rows = data.insights(provider, now: now)
+                if !rows.isEmpty {
+                    section(provider, rows, first: provider == Provider.allCases.first { data.snapshot($0) != nil })
+                }
             }
 
-            if let weekly, weekly.forecast != nil {
+            if let chart {
                 Divider().padding(.top, 16)
-                HStack {
+                HStack(spacing: 6) {
                     Text(tr("Ta semaine", "Your week")).font(.callout).fontWeight(.medium)
+                    if showsBoth, let key = chart.limit.key {
+                        Text(key.label(modelName: data.modelName)).font(.caption).foregroundStyle(.secondary)
+                    }
                     Spacer()
                     if decorative {
                         HStack(spacing: 0) {
@@ -108,17 +136,17 @@ struct PanelContent: View {
                 .padding(.top, 12)
 
                 if chartView == "day" {
-                    DayChart(insight: weekly, samples: samples, now: now).padding(.top, 8)
+                    DayChart(insight: chart, samples: data.samples, now: now).padding(.top, 8)
                 } else {
-                    CumulativeChart(insight: weekly, samples: samples, now: now).padding(.top, 8)
+                    CumulativeChart(insight: chart, samples: data.samples, now: now).padding(.top, 8)
                 }
             }
 
-            if snapshot == nil, state == .loading || state == .idle {
+            if data.claude == nil, data.chatgpt == nil, state == .loading || state == .idle {
                 Text(tr("Lecture de l'usage…", "Reading usage…")).foregroundStyle(.secondary).padding(.top, 12)
             }
 
-            if let rows = snapshot?.breakdown, !rows.isEmpty {
+            if let rows = data.claude?.breakdown, !rows.isEmpty {
                 Text(rows.map { "\($0.name) \(Fmt.pct($0.percent))" }.joined(separator: " · "))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
@@ -137,7 +165,7 @@ struct PanelContent: View {
             HStack {
                 if decorative { fakeButton(tr("Réglages…", "Settings…")) } else { Button(tr("Réglages…", "Settings…"), action: onSettings) }
                 Spacer()
-                if let snapshot {
+                if let snapshot = data.claude {
                     Text(tr("Relevé \(Fmt.ago(snapshot.fetchedAt, now: now))", "Updated \(Fmt.ago(snapshot.fetchedAt, now: now))"))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
@@ -150,20 +178,47 @@ struct PanelContent: View {
         }
     }
 
-    private func header(_ weekly: LimitInsight?) -> some View {
+    /// Les limites d'un service. Le nom du service n'apparaît que s'il y en a deux.
+    private func section(_ provider: Provider, _ rows: [LimitInsight], first: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if showsBoth {
+                HStack {
+                    Text(provider.label)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    // Les chiffres de Codex viennent de sa dernière utilisation sur ce Mac.
+                    if provider == .chatgpt, let read = data.chatgpt?.fetchedAt, now.timeIntervalSince(read) > 3600 {
+                        Text(tr("relevé \(Fmt.ago(read, now: now))", "read \(Fmt.ago(read, now: now))"))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+            ForEach(Array(rows.enumerated()), id: \.element.limit.id) { index, insight in
+                CadenceBar(insight: insight, showPaceLabel: first && index == 0)
+                    .padding(.top, index == 0 ? 0 : 14)
+            }
+        }
+        .padding(.top, 16)
+    }
+
+    private func header(_ hero: LimitInsight?) -> some View {
         HStack(spacing: 8) {
             Text("Tempo").font(.headline)
-            if let weekly, weekly.forecast != nil {
-                Text(weekly.status.label)
+            if let hero, hero.forecast != nil {
+                Text(hero.status.label)
                     .font(.caption)
                     .fontWeight(.medium)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(palette.swiftColor(weekly.status).opacity(0.18), in: Capsule())
-                    .foregroundStyle(palette.swiftColor(weekly.status))
+                    .background(palette.swiftColor(hero.status).opacity(0.18), in: Capsule())
+                    .foregroundStyle(palette.swiftColor(hero.status))
             }
             Spacer()
-            if let reset = weekly?.limit.resetsAt {
+            if let reset = hero?.limit.resetsAt {
                 Text(tr("réinit. dans \(Fmt.duration(reset.timeIntervalSince(now)))", "resets in \(Fmt.duration(reset.timeIntervalSince(now)))"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -212,7 +267,11 @@ private struct HeroText: View {
     private var headline: String {
         if insight.limit.percent >= 100 { return tr("Quota épuisé", "Quota used up") }
         if let date = forecast.exhaustionDate { return tr("Quota épuisé \(Fmt.dayTime(date))", "Quota runs out \(Fmt.dayTime(date))") }
-        if let end = forecast.projectedEnd { return tr("Tu finis la semaine à \(Fmt.pct(end))", "You'll finish the week at \(Fmt.pct(end))") }
+        if let end = forecast.projectedEnd {
+            return insight.limit.isWeekly
+                ? tr("Tu finis la semaine à \(Fmt.pct(end))", "You'll finish the week at \(Fmt.pct(end))")
+                : tr("Tu finis la fenêtre à \(Fmt.pct(end))", "You'll finish the window at \(Fmt.pct(end))")
+        }
         return tr("Trop tôt pour prévoir", "Too early to forecast")
     }
 
@@ -233,7 +292,9 @@ private struct HeroText: View {
             return tr("\(Fmt.points(forecast.paceDelta)) de marge. ", "\(Fmt.points(forecast.paceDelta)) of headroom. ")
                 + (budget ?? tr("Tu peux utiliser \(Fmt.points(forecast.dailyBudget)) par jour.", "You can use \(Fmt.points(forecast.dailyBudget)) a day."))
         }
-        return tr("La semaine vient de commencer.", "The week has just started.")
+        return insight.limit.isWeekly
+            ? tr("La semaine vient de commencer.", "The week has just started.")
+            : tr("La fenêtre vient de commencer.", "The window has just started.")
     }
 }
 
@@ -291,13 +352,15 @@ private struct CadenceBar: View {
             }
 
             if let message {
-                Text(message).font(.caption).foregroundStyle(color)
+                Text(message).font(.caption).foregroundStyle(insight.forecast == nil ? Color.secondary : color)
             }
         }
     }
 
     private var message: String? {
-        guard let forecast = insight.forecast else { return nil }
+        guard let forecast = insight.forecast else {
+            return insight.limit.resetsAt == nil ? tr("Aucune fenêtre en cours", "No active window") : nil
+        }
         if insight.limit.percent >= 100 {
             return tr("Quota épuisé · retour \(Fmt.dayTime(forecast.reset))", "Quota used up · back \(Fmt.dayTime(forecast.reset))")
         }

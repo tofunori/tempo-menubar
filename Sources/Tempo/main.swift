@@ -4,8 +4,9 @@ let arguments = CommandLine.arguments
 
 if arguments.contains("--dump") {
     let done = DispatchSemaphore(value: 0)
+    let localOnly = arguments.contains("local")
     Task.detached {
-        await DebugTools.dump()
+        await DebugTools.dump(localOnly: localOnly)
         done.signal()
     }
     done.wait()
@@ -21,7 +22,11 @@ if let index = arguments.firstIndex(of: "--panel"), arguments.count > index + 1 
     MainActor.assumeIsolated {
         if arguments.contains("en") { Lang.setting = .en }
         if arguments.contains("fr") { Lang.setting = .fr }
-        DebugTools.panel(to: arguments[index + 1], over: arguments.contains("over"))
+        // « live » dessine les vraies données en cache ; « chatgpt » met en avant l'hebdo de ChatGPT.
+        DebugTools.panel(
+            to: arguments[index + 1], over: arguments.contains("over"), live: arguments.contains("live"),
+            focus: arguments.contains("chatgpt") ? .chatgptWeekly : .claudeWeekly
+        )
     }
     exit(0)
 }

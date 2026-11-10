@@ -1,10 +1,24 @@
 import Foundation
 
-/// Un relevé d'usage : hebdo tous modèles (w) et hebdo du modèle suivi (m).
+/// Un relevé d'usage. Claude : hebdo tous modèles (w), modèle suivi (m), session (s).
+/// ChatGPT : session de 5 heures (gs), hebdo (gw).
 struct Sample: Codable, Equatable {
     let t: Date
-    let w: Double?
-    let m: Double?
+    var w: Double?
+    var m: Double?
+    var s: Double?
+    var gs: Double?
+    var gw: Double?
+
+    func value(for key: MetricKey) -> Double? {
+        switch key {
+        case .claudeWeekly: return w
+        case .claudeModel: return m
+        case .claudeSession: return s
+        case .chatgptSession: return gs
+        case .chatgptWeekly: return gw
+        }
+    }
 }
 
 /// Historique local des relevés. Il sert à mesurer le rythme récent et à tracer la courbe.
@@ -28,15 +42,21 @@ final class HistoryStore {
         samples = (try? decoder.decode([Sample].self, from: data)) ?? []
     }
 
-    func record(_ snapshot: UsageSnapshot) {
-        let sample = Sample(t: snapshot.fetchedAt, w: snapshot.weekly?.percent, m: snapshot.model?.percent)
+    func record(_ data: UsageData, at now: Date) {
+        let sample = Sample(
+            t: now,
+            w: data.limit(.claudeWeekly)?.percent, m: data.limit(.claudeModel)?.percent,
+            s: data.limit(.claudeSession)?.percent,
+            gs: data.limit(.chatgptSession)?.percent, gw: data.limit(.chatgptWeekly)?.percent
+        )
         if let last = samples.last,
-           last.w == sample.w, last.m == sample.m,
+           last.w == sample.w, last.m == sample.m, last.s == sample.s,
+           last.gs == sample.gs, last.gw == sample.gw,
            sample.t.timeIntervalSince(last.t) < 30 * 60 {
             return
         }
         samples.append(sample)
-        let cutoff = snapshot.fetchedAt.addingTimeInterval(-retention)
+        let cutoff = now.addingTimeInterval(-retention)
         samples.removeAll { $0.t < cutoff }
         save()
     }

@@ -126,12 +126,7 @@ enum Pace {
         let current = insight.limit.percent
         var points: [(t: Date, v: Double)] = [(start, 0)]
         for sample in samples where sample.t > start && sample.t < now {
-            let value: Double?
-            switch insight.limit.kind {
-            case .weeklyAll: value = sample.w
-            case .weeklyModel: value = sample.m
-            default: value = nil
-            }
+            let value = insight.limit.key.flatMap(sample.value(for:))
             if let value, value <= current, value >= (points.last?.v ?? 0) {
                 points.append((sample.t, value))
             }
@@ -194,11 +189,7 @@ enum Pace {
         }
 
         let points: [(t: Date, v: Double)] = samples.compactMap { s in
-            switch limit.kind {
-            case .weeklyAll: return s.w.map { (s.t, $0) }
-            case .weeklyModel: return s.m.map { (s.t, $0) }
-            default: return nil
-            }
+            limit.key.flatMap(s.value(for:)).map { (s.t, $0) }
         }
         let recent = Pace.recent(
             points: points, current: limit.percent,

@@ -2,54 +2,73 @@ import AppKit
 import SwiftUI
 
 /// Outils de vérification en ligne de commande, sans ouvrir l'app :
-///   Tempo --dump                  lit l'usage et affiche les limites, la cadence et le texte de la barre
+///   Tempo --dump                  lit l'usage des deux services, affiche limites, cadence et texte de la barre
+///   Tempo --dump local            même chose sans appeler le service de Claude (cache et fichiers locaux)
 ///   Tempo --icons out.png         dessine une planche de tous les styles d'icône
 ///   Tempo --panel out.png [over]  dessine le panneau (vues Cumul et Par jour) avec des données fictives
 enum DebugTools {
-    static func dump() async {
-        do {
-            let snapshot = try await UsageClient().fetch()
-            let samples = HistoryStore().samples
-            let now = Date()
-            print("Relevés en historique : \(samples.count)")
-            for limit in snapshot.limits {
-                let insight = Pace.insight(for: limit, in: snapshot, samples: samples, now: now)
-                print("\n\(limit.label) : \(Fmt.pct(limit.percent))")
+    static func dump(localOnly: Bool) async {
+        let now = Date()
+        var data = UsageData(claude: UsageCache.load(), chatgpt: CodexUsage.loadLocal(now: now), samples: HistoryStore().samples)
+
+        if !localOnly {
+            do {
+                data.claude = try await UsageClient().fetch()
+            } catch {
+                print("Claude : \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
+                print("  (repli sur le dernier relevé en cache)")
+            }
+        }
+        print("Relevés en historique : \(data.samples.count)")
+
+        for provider in Provider.allCases {
+            guard let snapshot = data.snapshot(provider) else {
+                print("\n\(provider.label) : aucune donnée")
+                continue
+            }
+            print("\n=== \(provider.label), relevé \(Fmt.ago(snapshot.fetchedAt, now: now))")
+            for insight in data.insights(provider, now: now) {
+                let limit = insight.limit
+                print("\(limit.label) : \(Fmt.pct(limit.percent))")
                 if let start = insight.start { print("  début fenêtre   \(Fmt.dayTime(start))") }
                 if let reset = limit.resetsAt {
                     print("  réinit.         \(Fmt.dayTime(reset)) (dans \(Fmt.duration(reset.timeIntervalSince(now))))")
+                } else {
+                    print("  réinit.         aucune fenêtre en cours")
                 }
                 if let f = insight.forecast {
                     print("  écoulé          \(Fmt.pct(f.elapsedFraction * 100))")
                     print("  écart au rythme \(Int(f.paceDelta.rounded())) pts")
                     print("  fin projetée    \(f.projectedEnd.map(Fmt.pct) ?? "trop tôt")")
                     print("  épuisement      \(f.exhaustionDate.map(Fmt.dayTime) ?? "aucun avant la réinit.")")
-                    print("  budget          \(Fmt.points(f.dailyBudget)) par jour")
                 }
-                if let r = insight.recent {
-                    print("  récent          +\(Fmt.points(r.gained)) en \(String(format: "%.1f", r.spanHours)) h")
-                }
-                let days = Pace.dailyUsage(for: insight, samples: samples, now: now)
-                if !days.isEmpty {
+                let days = Pace.dailyUsage(for: insight, samples: data.samples, now: now)
+                if days.count > 1 {
                     let text = days.map { "\(Fmt.weekday($0.start)) \(Int($0.used.rounded()))+\(Int($0.possible.rounded()))" }
                     print("  par jour        \(text.joined(separator: "  "))")
                 }
             }
-            print("")
-            for text in BarText.allCases {
-                var options = DisplayOptions()
-                options.barText = text
-                options.iconStyle = .ring
-                let content = MenuBarContent.make(snapshot: snapshot, samples: samples, options: options, now: now)
-                print("Texte « \(text.label) » : \"\(content.title.string)\"")
-            }
-        } catch {
-            print("Échec : \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
+        }
+
+        print("\n=== Texte de la barre pour quelques combinaisons")
+        let combos: [(MetricKey, MetricKey?)] = [
+            (.claudeWeekly, .claudeModel), (.claudeWeekly, .chatgptWeekly),
+            (.chatgptSession, .claudeWeekly), (.chatgptWeekly, .chatgptSession),
+        ]
+        for (primary, secondary) in combos {
+            var options = DisplayOptions()
+            options.iconStyle = .arcs
+            options.primary = primary
+            options.secondary = secondary
+            let content = MenuBarContent.make(data: data, options: options, now: now)
+            let names = [primary.label(modelName: data.modelName), secondary?.label(modelName: data.modelName)]
+                .compactMap { $0 }.joined(separator: " + ")
+            print("\(names) : \"\(content.title.string)\"")
         }
     }
 
     /// Relevés fictifs qui montent par paliers, comme de vraies journées de travail.
-    static func fakeSamples(weekly: Double, model: Double, elapsed: Double, now: Date) -> [Sample] {
+    static func fakeSamples(weekly: Double, model: Double, elapsed: Double, now: Date, chatgptWeekly: Double? = nil) -> [Sample] {
         let weights = [1.3, 0.7, 1.6, 0.5, 1.1, 0.9, 1.2]
         func cumulative(_ x: Double) -> Double {
             let x = min(max(x, 0), 7)
@@ -62,14 +81,26 @@ enum DebugTools {
         return (1..<60).map { i in
             let u = Double(i) / 60
             let share = cumulative(u * days) / cumulative(days)
-            return Sample(t: start.addingTimeInterval(u * days * 86400), w: weekly * share, m: model * share)
+            return Sample(
+                t: start.addingTimeInterval(u * days * 86400),
+                w: weekly * share, m: model * share, gw: chatgptWeekly.map { $0 * share }
+            )
         }
+    }
+
+    /// Données fictives des deux services.
+    static func fakeData(weekly: Double, model: Double, elapsed: Double, now: Date) -> UsageData {
+        UsageData(
+            claude: .sample(weekly: weekly, model: model, elapsed: elapsed, now: now),
+            chatgpt: .sampleChatGPT(session: weekly * 0.8, weekly: weekly * 0.5, elapsed: elapsed, now: now),
+            samples: fakeSamples(weekly: weekly, model: model, elapsed: elapsed, now: now, chatgptWeekly: weekly * 0.5)
+        )
     }
 
     static func iconSheet(to path: String) {
         let styles = IconStyle.allCases.filter { $0 != .none }
         let cases: [(weekly: Double, model: Double, elapsed: Double)] = [(8, 3, 0.15), (56, 10, 0.67), (92, 60, 0.80)]
-        // Monochrome, puis dégradé avec Fable en couleur fixe, puis dégradé avec Fable selon son usage.
+        // Monochrome, puis dégradé avec deuxième valeur en couleur fixe, puis selon son usage.
         let variants: [(mode: ColorMode, model: ModelColorMode)] = [(.mono, .none), (.gradient, .fixed), (.gradient, .usage)]
 
         let cell = NSSize(width: 124, height: 32)
@@ -105,17 +136,12 @@ enum DebugTools {
                     var column = 0
                     for sample in cases {
                         for variant in variants {
-                            let snapshot = UsageSnapshot.sample(
-                                weekly: sample.weekly, model: sample.model, elapsed: sample.elapsed, now: now
-                            )
-                            let samples = fakeSamples(
-                                weekly: sample.weekly, model: sample.model, elapsed: sample.elapsed, now: now
-                            )
+                            let data = fakeData(weekly: sample.weekly, model: sample.model, elapsed: sample.elapsed, now: now)
                             var options = DisplayOptions()
                             options.iconStyle = style
                             options.colorMode = variant.mode
                             options.modelColorMode = variant.model
-                            let content = MenuBarContent.make(snapshot: snapshot, samples: samples, options: options, now: now)
+                            let content = MenuBarContent.make(data: data, options: options, now: now)
                             draw(content, at: NSPoint(x: 92 + CGFloat(column) * cell.width, y: y), cellHeight: cell.height)
                             column += 1
                         }
@@ -160,22 +186,26 @@ enum DebugTools {
     }
 
     /// Dessine le panneau hors écran, dans les deux vues du graphique.
+    /// - Parameter live: vrai pour utiliser le cache de Claude et les fichiers de Codex plutôt que des données fictives.
     @MainActor
-    static func panel(to path: String, over: Bool) {
+    static func panel(to path: String, over: Bool, live: Bool, focus: MetricKey) {
         let now = Date()
-        let weekly: Double = over ? 81 : 56, model: Double = over ? 34 : 10, elapsed = 0.67
-        var snapshot = UsageSnapshot.sample(weekly: weekly, model: model, elapsed: elapsed, now: now)
-        snapshot.breakdown = [
-            BreakdownRow(name: "Claude Code", percent: 91),
-            BreakdownRow(name: "Chats", percent: 1),
-            BreakdownRow(name: "Cowork", percent: 8),
-        ]
-        let samples = fakeSamples(weekly: weekly, model: model, elapsed: elapsed, now: now)
+        var data: UsageData
+        if live {
+            data = UsageData(claude: UsageCache.load(), chatgpt: CodexUsage.loadLocal(now: now), samples: HistoryStore().samples)
+        } else {
+            data = fakeData(weekly: over ? 81 : 56, model: over ? 34 : 10, elapsed: 0.67, now: now)
+            data.claude?.breakdown = [
+                BreakdownRow(name: "Claude Code", percent: 91),
+                BreakdownRow(name: "Chats", percent: 1),
+                BreakdownRow(name: "Cowork", percent: 8),
+            ]
+        }
 
         for (view, suffix) in [("cum", ""), ("day", "-jour")] {
             let content = PanelContent(
-                snapshot: snapshot, samples: samples, state: .ok, now: now,
-                chartView: .constant(view), onRefresh: {}, onSettings: {}
+                data: data, focus: focus, state: .ok, now: now,
+                chartView: .constant(view), onRefresh: {}, onSettings: {}, decorative: true
             )
             .padding(16)
             .frame(width: 348)

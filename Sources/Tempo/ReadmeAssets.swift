@@ -11,6 +11,7 @@ enum ReadmeAssets {
         Lang.setting = .en
         save(hero(), "\(directory)/hero.jpg")
         save(panels(), "\(directory)/panels.jpg")
+        save(combos(), "\(directory)/combos.jpg")
         save(styles(), "\(directory)/styles.jpg")
         save(colors(), "\(directory)/colors.jpg")
     }
@@ -29,14 +30,16 @@ enum ReadmeAssets {
 
     private static let elapsed = 0.67
 
-    private static func scene(_ weekly: Double, _ model: Double) -> (UsageSnapshot, [Sample]) {
-        var snapshot = UsageSnapshot.sample(weekly: weekly, model: model, elapsed: elapsed, now: now)
-        snapshot.breakdown = [
+    /// - Parameter chatgpt: vrai pour ajouter les limites de Codex aux données.
+    private static func scene(_ weekly: Double, _ model: Double, chatgpt: Bool = true) -> UsageData {
+        var data = DebugTools.fakeData(weekly: weekly, model: model, elapsed: elapsed, now: now)
+        data.claude?.breakdown = [
             BreakdownRow(name: "Claude Code", percent: 91),
             BreakdownRow(name: "Chats", percent: 1),
             BreakdownRow(name: "Cowork", percent: 8),
         ]
-        return (snapshot, DebugTools.fakeSamples(weekly: weekly, model: model, elapsed: elapsed, now: now))
+        if !chatgpt { data.chatgpt = nil }
+        return data
     }
 
     // MARK: - Outils
@@ -104,22 +107,20 @@ enum ReadmeAssets {
         return output
     }
 
-    private static func icon(
-        _ style: IconStyle, weekly: Double, model: Double, zoom: CGFloat, configure: (inout DisplayOptions) -> Void = { _ in }
+    /// Une icône, telle que la barre la montrerait, pour des réglages donnés.
+    private static func item(
+        _ data: UsageData, zoom: CGFloat = 1, withTitle: Bool = false,
+        configure: (inout DisplayOptions) -> Void = { _ in }
     ) -> NSImage {
-        let (snapshot, samples) = scene(weekly, model)
         var options = DisplayOptions()
-        options.iconStyle = style
         options.colorMode = .gradient
-        options.barText = .none
         configure(&options)
-        return raster(MenuBarContent.make(snapshot: snapshot, samples: samples, options: options, now: now, zoom: zoom))
+        return raster(MenuBarContent.make(data: data, options: options, now: now, zoom: zoom), withTitle: withTitle)
     }
 
-    private static func panel(_ weekly: Double, _ model: Double, view: String) -> some View {
-        let (snapshot, samples) = scene(weekly, model)
-        return PanelContent(
-            snapshot: snapshot, samples: samples, state: .ok, now: now,
+    private static func panel(_ data: UsageData, view: String, focus: MetricKey = .claudeWeekly) -> some View {
+        PanelContent(
+            data: data, focus: focus, state: .ok, now: now,
             chartView: .constant(view), onRefresh: {}, onSettings: {}, decorative: true
         )
         .padding(16)
@@ -133,13 +134,8 @@ enum ReadmeAssets {
 
     /// Bannière : la barre de menus, le panneau ouvert et le titre.
     private static func hero() -> some View {
-        let (snapshot, samples) = scene(56, 10)
-        var options = DisplayOptions()
-        options.colorMode = .gradient
-        let item = raster(
-            MenuBarContent.make(snapshot: snapshot, samples: samples, options: options, now: now),
-            withTitle: true
-        )
+        let data = scene(56, 10, chatgpt: false)
+        let icon = item(data, withTitle: true)
 
         return ZStack(alignment: .topLeading) {
             backdrop
@@ -159,7 +155,7 @@ enum ReadmeAssets {
             .frame(height: 30)
 
             HStack(spacing: 16) {
-                Image(nsImage: item)
+                Image(nsImage: icon)
                 Image(systemName: "wifi")
                 Image(systemName: "battery.75percent")
                 Text("Mon 9 Nov  7:00 PM")
@@ -172,10 +168,10 @@ enum ReadmeAssets {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Tempo")
                     .font(.system(size: 80, weight: .bold, design: .rounded))
-                Text("Claude usage in your menu bar.\nAnd whether you're on pace.")
+                Text("Claude and ChatGPT usage in your\nmenu bar. And whether you're on pace.")
                     .font(.system(size: 27, weight: .medium))
                     .lineSpacing(4)
-                Text("Weekly and per-model limits, a forecast of when the quota\nruns out, and 18 icon styles you can recolor.")
+                Text("Weekly and 5-hour limits, a forecast of when the quota\nruns out, and 18 icon styles you can recolor.")
                     .font(.system(size: 17))
                     .lineSpacing(3)
                     .opacity(0.7)
@@ -183,7 +179,7 @@ enum ReadmeAssets {
             .padding(.leading, 76)
             .padding(.top, 196)
 
-            panel(56, 10, view: "cum")
+            panel(data, view: "cum")
                 .padding(.leading, 802)
                 .padding(.top, 44)
         }
@@ -191,12 +187,59 @@ enum ReadmeAssets {
         .frame(width: 1280, height: 650, alignment: .topLeading)
     }
 
-    /// Trois états du panneau : dans le rythme, la vue par jour, et trop vite.
+    /// Trois états du panneau : dans le rythme, les deux services ensemble, et trop vite.
     private static func panels() -> some View {
         HStack(alignment: .top, spacing: 28) {
-            panel(56, 10, view: "cum")
-            panel(56, 10, view: "day")
-            panel(81, 34, view: "cum")
+            panel(scene(56, 10, chatgpt: false), view: "cum")
+            panel(scene(56, 10), view: "day")
+            panel(scene(81, 34, chatgpt: false), view: "cum")
+        }
+        .padding(44)
+        .background(backdrop)
+    }
+
+    /// Des combinaisons de valeurs : chaque icône montre la paire qu'on lui donne.
+    private static func combos() -> some View {
+        let data = scene(56, 10)
+        let examples: [(String, IconStyle, MetricKey, MetricKey?)] = [
+            ("Claude weekly + Fable", .dial, .claudeWeekly, .claudeModel),
+            ("Claude weekly + ChatGPT weekly", .arcs, .claudeWeekly, .chatgptWeekly),
+            ("ChatGPT 5 h + Claude weekly", .parens, .chatgptSession, .claudeWeekly),
+            ("ChatGPT weekly + ChatGPT 5 h", .duo, .chatgptWeekly, .chatgptSession),
+        ]
+        func icon(_ style: IconStyle, _ primary: MetricKey, _ secondary: MetricKey?) -> NSImage {
+            item(data, zoom: 1.5, withTitle: true) { options in
+                options.iconStyle = style
+                options.primary = primary
+                options.secondary = secondary
+            }
+        }
+        func strip<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+            HStack(spacing: 18) { content() }
+                .padding(.horizontal, 18)
+                .frame(height: 44)
+                .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+        }
+        func caption(_ text: String) -> some View {
+            Text(text).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75))
+        }
+
+        return VStack(alignment: .leading, spacing: 22) {
+            HStack(alignment: .top, spacing: 22) {
+                ForEach(examples, id: \.0) { title, style, primary, secondary in
+                    VStack(alignment: .leading, spacing: 10) {
+                        strip { Image(nsImage: icon(style, primary, secondary)) }
+                        caption(title)
+                    }
+                }
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                strip {
+                    Image(nsImage: icon(.dial, .claudeWeekly, .claudeModel))
+                    Image(nsImage: icon(.arcs, .chatgptWeekly, .chatgptSession))
+                }
+                caption("Or two icons side by side, one per service")
+            }
         }
         .padding(44)
         .background(backdrop)
@@ -204,6 +247,7 @@ enum ReadmeAssets {
 
     /// Les dix-huit styles d'icône, par famille.
     private static func styles() -> some View {
+        let data = scene(56, 10)
         return VStack(alignment: .leading, spacing: 26) {
             ForEach(StyleGroup.allCases) { group in
                 VStack(alignment: .leading, spacing: 10) {
@@ -213,8 +257,11 @@ enum ReadmeAssets {
                     HStack(spacing: 12) {
                         ForEach(IconStyle.allCases.filter { $0.group == group && $0 != .none }) { style in
                             VStack(spacing: 10) {
-                                Image(nsImage: icon(style, weekly: 56, model: 10, zoom: 2.4))
-                                    .frame(height: 54)
+                                Image(nsImage: item(data, zoom: 2.4) { options in
+                                    options.iconStyle = style
+                                    options.barText = .none
+                                })
+                                .frame(height: 54)
                                 Text(style.label)
                                     .font(.system(size: 12))
                                     .foregroundStyle(.white.opacity(0.85))
@@ -243,14 +290,16 @@ enum ReadmeAssets {
                         .frame(width: 110, alignment: .leading)
                     ForEach(steps, id: \.self) { step in
                         VStack(spacing: 8) {
-                            Image(nsImage: icon(.arcs, weekly: step, model: step * 0.6, zoom: 2.6) { options in
+                            Image(nsImage: item(scene(step, step * 0.6), zoom: 2.6) { options in
+                                options.iconStyle = .arcs
+                                options.barText = .none
                                 options.palette.low = RGB(hex: preset.low) ?? options.palette.low
                                 options.palette.mid = RGB(hex: preset.mid) ?? options.palette.mid
                                 options.palette.high = RGB(hex: preset.high) ?? options.palette.high
                                 options.modelColorMode = .usage
                                 options.showPace = false
                             })
-                            Text("\(Int(step)) %")
+                            Text(Fmt.pct(step))
                                 .font(.system(size: 12))
                                 .monospacedDigit()
                                 .foregroundStyle(.white.opacity(0.6))

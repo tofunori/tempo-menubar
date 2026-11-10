@@ -1,5 +1,57 @@
 import Foundation
 
+/// Les services que Tempo suit.
+enum Provider: String, CaseIterable, Identifiable {
+    case claude, chatgpt
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .claude: return "Claude"
+        case .chatgpt: return "ChatGPT · Codex"
+        }
+    }
+}
+
+/// Les valeurs qu'une icône peut montrer, tous services confondus.
+enum MetricKey: String, CaseIterable, Identifiable {
+    case claudeWeekly = "claude.weekly"
+    case claudeModel = "claude.model"
+    case claudeSession = "claude.session"
+    case chatgptSession = "chatgpt.session"
+    case chatgptWeekly = "chatgpt.weekly"
+
+    var id: String { rawValue }
+
+    var provider: Provider {
+        switch self {
+        case .claudeWeekly, .claudeModel, .claudeSession: return .claude
+        case .chatgptSession, .chatgptWeekly: return .chatgpt
+        }
+    }
+
+    /// - Parameter modelName: nom du modèle que Claude limite à part (« Fable »).
+    func label(modelName: String) -> String {
+        switch self {
+        case .claudeWeekly: return tr("Claude · hebdo", "Claude · weekly")
+        case .claudeModel: return "Claude · \(modelName)"
+        case .claudeSession: return tr("Claude · 5 h", "Claude · 5 h")
+        case .chatgptSession: return tr("ChatGPT · 5 h", "ChatGPT · 5 h")
+        case .chatgptWeekly: return tr("ChatGPT · hebdo", "ChatGPT · weekly")
+        }
+    }
+
+    /// Repère court devant la deuxième valeur dans la barre de menus (« 56 % · G 10 % »).
+    func tag(modelName: String) -> String {
+        switch self {
+        case .claudeWeekly: return "C"
+        case .claudeModel: return modelName.first.map(String.init) ?? "M"
+        case .claudeSession: return "C5"
+        case .chatgptSession: return "G5"
+        case .chatgptWeekly: return "G"
+        }
+    }
+}
+
 /// Une limite du forfait, telle que le service d'usage la décrit.
 struct UsageLimit: Identifiable, Equatable {
     enum Kind: Equatable {
@@ -12,18 +64,37 @@ struct UsageLimit: Identifiable, Equatable {
     let kind: Kind
     let percent: Double
     let resetsAt: Date?
+    var provider: Provider = .claude
+    /// Durée de la fenêtre en secondes, quand le service la donne.
+    var length: TimeInterval?
 
     var id: String {
         switch kind {
-        case .weeklyAll: return "weekly_all"
-        case .weeklyModel(let name): return "weekly_model_\(name)"
-        case .session: return "session"
-        case .other(let raw): return "other_\(raw)"
+        case .weeklyAll: return "\(provider.rawValue).weekly_all"
+        case .weeklyModel(let name): return "\(provider.rawValue).weekly_model_\(name)"
+        case .session: return "\(provider.rawValue).session"
+        case .other(let raw): return "\(provider.rawValue).other_\(raw)"
         }
     }
 
+    /// La valeur d'icône que cette limite alimente, s'il y en a une.
+    var key: MetricKey? {
+        switch (provider, kind) {
+        case (.claude, .weeklyAll): return .claudeWeekly
+        case (.claude, .weeklyModel): return .claudeModel
+        case (.claude, .session): return .claudeSession
+        case (.chatgpt, .weeklyAll): return .chatgptWeekly
+        case (.chatgpt, .session): return .chatgptSession
+        default: return nil
+        }
+    }
+
+    /// Vrai pour une fenêtre d'au moins deux jours : on peut alors parler de semaine et de budget par jour.
+    var isWeekly: Bool { windowLength >= 2 * 86400 }
+
     var label: String {
         switch kind {
+        case .weeklyAll where provider == .chatgpt: return tr("Hebdo", "Weekly")
         case .weeklyAll: return tr("Hebdo · tous modèles", "Weekly · all models")
         case .weeklyModel(let name): return tr("Hebdo · \(name)", "Weekly · \(name)")
         case .session: return tr("Session 5 h", "5-hour session")
@@ -33,6 +104,7 @@ struct UsageLimit: Identifiable, Equatable {
 
     /// Durée de la fenêtre, pour retrouver son début quand le service ne le donne pas.
     var windowLength: TimeInterval {
+        if let length { return length }
         switch kind {
         case .session: return 5 * 3600
         default: return 7 * 86400
@@ -66,6 +138,23 @@ struct UsageSnapshot: Equatable {
         return nil
     }
 
+    /// Relevé fictif de Codex : une fenêtre de 5 heures à moitié écoulée, et l'hebdo.
+    static func sampleChatGPT(session: Double, weekly: Double, elapsed: Double, now: Date) -> UsageSnapshot {
+        UsageSnapshot(
+            limits: [
+                UsageLimit(
+                    kind: .session, percent: session, resetsAt: now.addingTimeInterval(2.5 * 3600),
+                    provider: .chatgpt, length: 5 * 3600
+                ),
+                UsageLimit(
+                    kind: .weeklyAll, percent: weekly, resetsAt: now.addingTimeInterval((1 - elapsed) * 7 * 86400),
+                    provider: .chatgpt, length: 7 * 86400
+                ),
+            ],
+            weeklyWindowStart: nil, breakdown: [], fetchedAt: now
+        )
+    }
+
     /// Relevé fictif, pour les aperçus et les vérifications hors ligne.
     static func sample(weekly: Double, model: Double, elapsed: Double, now: Date) -> UsageSnapshot {
         let reset = now.addingTimeInterval((1 - elapsed) * 7 * 86400)
@@ -80,8 +169,36 @@ struct UsageSnapshot: Equatable {
     }
 
     func windowStart(for limit: UsageLimit) -> Date? {
-        if limit.kind != .session, let start = weeklyWindowStart { return start }
+        if limit.kind != .session, limit.length == nil, let start = weeklyWindowStart { return start }
         return limit.resetsAt.map { $0.addingTimeInterval(-limit.windowLength) }
+    }
+}
+
+/// Tout ce que Tempo sait à un instant donné, tous services confondus.
+struct UsageData {
+    var claude: UsageSnapshot?
+    var chatgpt: UsageSnapshot?
+    var samples: [Sample] = []
+
+    var modelName: String { claude?.modelName ?? "Fable" }
+
+    func snapshot(_ provider: Provider) -> UsageSnapshot? {
+        provider == .claude ? claude : chatgpt
+    }
+
+    func limit(_ key: MetricKey) -> UsageLimit? {
+        snapshot(key.provider)?.limits.first { $0.key == key }
+    }
+
+    func insight(_ key: MetricKey, now: Date) -> LimitInsight? {
+        guard let snapshot = snapshot(key.provider), let limit = limit(key) else { return nil }
+        return Pace.insight(for: limit, in: snapshot, samples: samples, now: now)
+    }
+
+    /// Les limites d'un service, avec leur cadence, dans l'ordre du relevé.
+    func insights(_ provider: Provider, now: Date) -> [LimitInsight] {
+        guard let snapshot = snapshot(provider) else { return [] }
+        return snapshot.limits.map { Pace.insight(for: $0, in: snapshot, samples: samples, now: now) }
     }
 }
 

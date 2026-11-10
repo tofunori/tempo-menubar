@@ -5,7 +5,7 @@ enum StyleGroup: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .dual: return tr("Hebdo et modèle dans la même icône", "Weekly and model in one icon")
+        case .dual: return tr("Deux valeurs dans la même icône", "Two values in one icon")
         case .single: return tr("Une valeur", "One value")
         case .classic: return tr("Classiques", "Classics")
         }
@@ -55,11 +55,6 @@ enum IconStyle: String, CaseIterable, Identifiable {
     }
 
     var isDual: Bool { group == .dual }
-}
-
-enum Metric: String, CaseIterable, Identifiable {
-    case both, weekly, model
-    var id: String { rawValue }
 }
 
 enum BarText: String, CaseIterable, Identifiable {
@@ -183,14 +178,25 @@ struct Palette: Equatable {
     }
 }
 
-/// Tout ce qui décide de l'apparence dans la barre de menus.
+/// Ce qu'une icône de la barre de menus montre : ses deux valeurs, son style, son texte.
+struct ItemConfig: Equatable {
+    var enabled = true
+    var iconStyle: IconStyle = .dial
+    var primary: MetricKey = .claudeWeekly
+    /// Deuxième valeur, pour les styles qui en montrent deux. Nil = une seule valeur.
+    var secondary: MetricKey? = .claudeModel
+    var barText: BarText = .percent
+}
+
+/// Tout ce qui décide de l'apparence d'une icône : sa configuration, plus les réglages communs.
 struct DisplayOptions: Equatable {
     var iconStyle: IconStyle = .dial
-    var metric: Metric = .both
+    var primary: MetricKey = .claudeWeekly
+    var secondary: MetricKey? = .claudeModel
     var barText: BarText = .percent
     var colorMode: ColorMode = .mono
     var palette = Palette()
-    /// Donne au modèle suivi (Fable) sa propre couleur, pour le distinguer de l'hebdo.
+    /// Donne à la deuxième valeur sa propre couleur, pour la distinguer de la première.
     var modelColorMode: ModelColorMode = .fixed
     var modelFixed = RGB(hex: "8A80E8")!
     var showPace = true
@@ -199,9 +205,8 @@ struct DisplayOptions: Equatable {
 
 @MainActor
 final class Settings: ObservableObject {
-    @Published var iconStyle: IconStyle { didSet { defaults.set(iconStyle.rawValue, forKey: "iconStyle") } }
-    @Published var metric: Metric { didSet { defaults.set(metric.rawValue, forKey: "metric") } }
-    @Published var barText: BarText { didSet { defaults.set(barText.rawValue, forKey: "barText") } }
+    /// Les icônes de la barre de menus. La première est toujours affichée.
+    @Published var items: [ItemConfig] { didSet { saveItems() } }
     @Published var colorMode: ColorMode { didSet { defaults.set(colorMode.rawValue, forKey: "colorMode") } }
     @Published var modelColorMode: ModelColorMode { didSet { defaults.set(modelColorMode.rawValue, forKey: "modelColorMode") } }
     @Published var modelFixed: RGB { didSet { defaults.set(modelFixed.hex, forKey: "modelFixed") } }
@@ -232,10 +237,10 @@ final class Settings: ObservableObject {
         let savedLanguage = d.string(forKey: "language").flatMap(AppLanguage.init(rawValue:)) ?? .auto
         language = savedLanguage
         Lang.setting = savedLanguage
-        iconStyle = d.string(forKey: "iconStyle").flatMap(IconStyle.init(rawValue:)) ?? base.iconStyle
-        metric = d.string(forKey: "metric").flatMap(Metric.init(rawValue:)) ?? base.metric
-        barText = d.string(forKey: "barText").flatMap(BarText.init(rawValue:)) ?? base.barText
+
+        items = [Settings.loadItem(0, from: d), Settings.loadItem(1, from: d)]
         colorMode = d.string(forKey: "colorMode").flatMap(ColorMode.init(rawValue:)) ?? base.colorMode
+
         if let saved = d.string(forKey: "modelColorMode").flatMap(ModelColorMode.init(rawValue:)) {
             modelColorMode = saved
         } else if let old = d.object(forKey: "modelColor") as? Bool {
@@ -261,11 +266,53 @@ final class Settings: ObservableObject {
         refreshMinutes = minutes >= 5 ? minutes : 15
     }
 
-    var options: DisplayOptions {
-        DisplayOptions(
-            iconStyle: iconStyle, metric: metric, barText: barText, colorMode: colorMode,
-            palette: palette, modelColorMode: modelColorMode, modelFixed: modelFixed,
+    /// Les réglages complets de l'icône `index`.
+    func options(for index: Int) -> DisplayOptions {
+        let item = items[index]
+        return DisplayOptions(
+            iconStyle: item.iconStyle, primary: item.primary, secondary: item.secondary, barText: item.barText,
+            colorMode: colorMode, palette: palette, modelColorMode: modelColorMode, modelFixed: modelFixed,
             showPace: showPace, showRemaining: showRemaining
         )
+    }
+
+    // MARK: - Icônes
+
+    private static func loadItem(_ index: Int, from d: UserDefaults) -> ItemConfig {
+        let prefix = "item\(index)."
+        // Par défaut : la première icône suit Claude, la deuxième (masquée) suit ChatGPT.
+        var item = index == 0
+            ? ItemConfig()
+            : ItemConfig(enabled: false, iconStyle: .arcs, primary: .chatgptWeekly, secondary: .chatgptSession)
+
+        if d.object(forKey: prefix + "style") == nil, index == 0 {
+            // Reprise des réglages d'avant les icônes multiples.
+            if let style = d.string(forKey: "iconStyle").flatMap(IconStyle.init(rawValue:)) { item.iconStyle = style }
+            if let text = d.string(forKey: "barText").flatMap(BarText.init(rawValue:)) { item.barText = text }
+            switch d.string(forKey: "metric") {
+            case "weekly": item.secondary = nil
+            case "model": item.primary = .claudeModel; item.secondary = nil
+            default: break
+            }
+            return item
+        }
+
+        if let style = d.string(forKey: prefix + "style").flatMap(IconStyle.init(rawValue:)) { item.iconStyle = style }
+        if let key = d.string(forKey: prefix + "primary").flatMap(MetricKey.init(rawValue:)) { item.primary = key }
+        if let raw = d.string(forKey: prefix + "secondary") { item.secondary = MetricKey(rawValue: raw) }
+        if let text = d.string(forKey: prefix + "text").flatMap(BarText.init(rawValue:)) { item.barText = text }
+        if index > 0, let enabled = d.object(forKey: prefix + "enabled") as? Bool { item.enabled = enabled }
+        return item
+    }
+
+    private func saveItems() {
+        for (index, item) in items.enumerated() {
+            let prefix = "item\(index)."
+            defaults.set(item.iconStyle.rawValue, forKey: prefix + "style")
+            defaults.set(item.primary.rawValue, forKey: prefix + "primary")
+            defaults.set(item.secondary?.rawValue ?? "none", forKey: prefix + "secondary")
+            defaults.set(item.barText.rawValue, forKey: prefix + "text")
+            defaults.set(item.enabled, forKey: prefix + "enabled")
+        }
     }
 }

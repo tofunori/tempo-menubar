@@ -1,6 +1,6 @@
 import Foundation
 
-/// Tient le dernier relevé, l'historique, et relance la lecture à intervalle fixe.
+/// Tient les derniers relevés des deux services, l'historique, et relance la lecture à intervalle fixe.
 @MainActor
 final class UsageStore: ObservableObject {
     enum State: Equatable {
@@ -8,7 +8,10 @@ final class UsageStore: ObservableObject {
         case failed(String)
     }
 
+    /// Dernier relevé de Claude.
     @Published private(set) var snapshot: UsageSnapshot?
+    /// Dernier relevé de ChatGPT (Codex), lu dans les fichiers locaux. Nil si Codex n'a jamais tourné ici.
+    @Published private(set) var chatgpt: UsageSnapshot?
     @Published private(set) var state: State = .idle
     @Published private(set) var samples: [Sample] = []
 
@@ -32,7 +35,11 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    /// Vrai quand le relevé affiché est trop vieux pour qu'on s'y fie.
+    var data: UsageData {
+        UsageData(claude: snapshot, chatgpt: chatgpt, samples: samples)
+    }
+
+    /// Vrai quand le relevé de Claude est trop vieux pour qu'on s'y fie.
     var isStale: Bool {
         guard let snapshot else { return true }
         return Date().timeIntervalSince(snapshot.fetchedAt) > max(interval * 3, 900)
@@ -45,14 +52,24 @@ final class UsageStore: ObservableObject {
             Task { @MainActor in await self?.refresh(automatic: true) }
         }
         timer?.tolerance = seconds * 0.1
+        Task { await refreshLocal() }
         // Le service limite les demandes : au lancement, on réutilise un relevé encore frais.
         if let snapshot, Date().timeIntervalSince(snapshot.fetchedAt) < seconds { return }
         Task { await refresh(automatic: true) }
     }
 
+    /// Relit les fichiers de Codex. Aucun appel réseau, donc on peut le faire souvent.
+    func refreshLocal() async {
+        let fresh = await Task.detached { CodexUsage.loadLocal() }.value
+        guard fresh != chatgpt else { return }
+        chatgpt = fresh
+        record()
+    }
+
     /// - Parameter automatic: vrai pour les essais du minuteur, qui respectent l'espacement
     ///   après un refus. Le bouton Actualiser essaie toujours.
     func refresh(automatic: Bool = false) async {
+        await refreshLocal()
         guard state != .loading else { return }
         if automatic, let retryAfter, Date() < retryAfter { return }
         state = .loading
@@ -60,8 +77,7 @@ final class UsageStore: ObservableObject {
         do {
             let fresh = try await Task.detached { try await client.fetch() }.value
             snapshot = fresh
-            history.record(fresh)
-            samples = history.samples
+            record()
             state = .ok
             backoff = 0
             retryAfter = nil
@@ -76,5 +92,10 @@ final class UsageStore: ObservableObject {
             }
             state = .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
+    }
+
+    private func record() {
+        history.record(data, at: Date())
+        samples = history.samples
     }
 }
