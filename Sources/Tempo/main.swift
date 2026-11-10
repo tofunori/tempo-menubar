@@ -1,0 +1,41 @@
+import AppKit
+
+let arguments = CommandLine.arguments
+
+if arguments.contains("--dump") {
+    let done = DispatchSemaphore(value: 0)
+    Task.detached {
+        await DebugTools.dump()
+        done.signal()
+    }
+    done.wait()
+    exit(0)
+}
+
+if let index = arguments.firstIndex(of: "--icons"), arguments.count > index + 1 {
+    DebugTools.iconSheet(to: arguments[index + 1])
+    exit(0)
+}
+
+if let index = arguments.firstIndex(of: "--panel"), arguments.count > index + 1 {
+    MainActor.assumeIsolated {
+        DebugTools.panel(to: arguments[index + 1], over: arguments.contains("over"))
+    }
+    exit(0)
+}
+
+if let index = arguments.firstIndex(of: "--readme-assets"), arguments.count > index + 1 {
+    MainActor.assumeIsolated {
+        ReadmeAssets.generate(into: arguments[index + 1])
+    }
+    exit(0)
+}
+
+// Le code de premier niveau tourne sur le fil principal ; on le dit au compilateur.
+MainActor.assumeIsolated {
+    let app = NSApplication.shared
+    let delegate = AppDelegate()
+    app.delegate = delegate
+    app.setActivationPolicy(.accessory)
+    app.run()
+}
