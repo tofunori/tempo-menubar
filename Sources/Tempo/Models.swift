@@ -2,12 +2,13 @@ import Foundation
 
 /// Les services que Tempo suit.
 enum Provider: String, CaseIterable, Identifiable {
-    case claude, chatgpt
+    case claude, chatgpt, antigravity
     var id: String { rawValue }
     var label: String {
         switch self {
         case .claude: return "Claude"
         case .chatgpt: return "ChatGPT · Codex"
+        case .antigravity: return "Antigravity"
         }
     }
 }
@@ -19,6 +20,10 @@ enum MetricKey: String, CaseIterable, Identifiable {
     case claudeSession = "claude.session"
     case chatgptSession = "chatgpt.session"
     case chatgptWeekly = "chatgpt.weekly"
+    case antigravityGeminiSession = "antigravity.gemini.session"
+    case antigravityGeminiWeekly = "antigravity.gemini.weekly"
+    case antigravityClaudeSession = "antigravity.claude.session"
+    case antigravityClaudeWeekly = "antigravity.claude.weekly"
 
     var id: String { rawValue }
 
@@ -26,6 +31,8 @@ enum MetricKey: String, CaseIterable, Identifiable {
         switch self {
         case .claudeWeekly, .claudeModel, .claudeSession: return .claude
         case .chatgptSession, .chatgptWeekly: return .chatgpt
+        case .antigravityGeminiSession, .antigravityGeminiWeekly,
+             .antigravityClaudeSession, .antigravityClaudeWeekly: return .antigravity
         }
     }
 
@@ -37,6 +44,10 @@ enum MetricKey: String, CaseIterable, Identifiable {
         case .claudeSession: return tr("Claude · 5 h", "Claude · 5 h")
         case .chatgptSession: return tr("ChatGPT · 5 h", "ChatGPT · 5 h")
         case .chatgptWeekly: return tr("ChatGPT · hebdo", "ChatGPT · weekly")
+        case .antigravityGeminiSession: return tr("Antigravity · Gemini 5 h", "Antigravity · Gemini 5 h")
+        case .antigravityGeminiWeekly: return tr("Antigravity · Gemini hebdo", "Antigravity · Gemini weekly")
+        case .antigravityClaudeSession: return tr("Antigravity · Claude/GPT 5 h", "Antigravity · Claude/GPT 5 h")
+        case .antigravityClaudeWeekly: return tr("Antigravity · Claude/GPT hebdo", "Antigravity · Claude/GPT weekly")
         }
     }
 
@@ -48,6 +59,10 @@ enum MetricKey: String, CaseIterable, Identifiable {
         case .claudeSession: return "C5"
         case .chatgptSession: return "G5"
         case .chatgptWeekly: return "G"
+        case .antigravityGeminiSession: return "AG5"
+        case .antigravityGeminiWeekly: return "AG"
+        case .antigravityClaudeSession: return "AC5"
+        case .antigravityClaudeWeekly: return "AC"
         }
     }
 }
@@ -58,6 +73,7 @@ struct UsageLimit: Identifiable, Equatable {
         case weeklyAll
         case weeklyModel(String)
         case session
+        case sessionModel(String)
         case other(String)
     }
 
@@ -73,6 +89,7 @@ struct UsageLimit: Identifiable, Equatable {
         case .weeklyAll: return "\(provider.rawValue).weekly_all"
         case .weeklyModel(let name): return "\(provider.rawValue).weekly_model_\(name)"
         case .session: return "\(provider.rawValue).session"
+        case .sessionModel(let name): return "\(provider.rawValue).session_model_\(name)"
         case .other(let raw): return "\(provider.rawValue).other_\(raw)"
         }
     }
@@ -85,6 +102,10 @@ struct UsageLimit: Identifiable, Equatable {
         case (.claude, .session): return .claudeSession
         case (.chatgpt, .weeklyAll): return .chatgptWeekly
         case (.chatgpt, .session): return .chatgptSession
+        case (.antigravity, .sessionModel("Gemini")): return .antigravityGeminiSession
+        case (.antigravity, .weeklyModel("Gemini")): return .antigravityGeminiWeekly
+        case (.antigravity, .sessionModel("Claude/GPT")): return .antigravityClaudeSession
+        case (.antigravity, .weeklyModel("Claude/GPT")): return .antigravityClaudeWeekly
         default: return nil
         }
     }
@@ -98,6 +119,8 @@ struct UsageLimit: Identifiable, Equatable {
         case .weeklyAll: return tr("Hebdo · tous modèles", "Weekly · all models")
         case .weeklyModel(let name): return tr("Hebdo · \(name)", "Weekly · \(name)")
         case .session: return tr("Session 5 h", "5-hour session")
+        case .sessionModel(let name): return tr("5 h · \(name)", "5 h · \(name)")
+        case .other(let raw) where provider == .antigravity: return raw
         case .other(let raw): return raw.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
@@ -106,7 +129,7 @@ struct UsageLimit: Identifiable, Equatable {
     var windowLength: TimeInterval {
         if let length { return length }
         switch kind {
-        case .session: return 5 * 3600
+        case .session, .sessionModel: return 5 * 3600
         default: return 7 * 86400
         }
     }
@@ -155,6 +178,37 @@ struct UsageSnapshot: Equatable {
         )
     }
 
+    /// Relevé fictif d'Antigravity : fenêtres de 5 heures et hebdo pour Gemini et Claude/GPT.
+    static func sampleAntigravity(
+        geminiSession: Double, geminiWeekly: Double,
+        claudeSession: Double, claudeWeekly: Double,
+        elapsed: Double, now: Date
+    ) -> UsageSnapshot {
+        UsageSnapshot(
+            limits: [
+                UsageLimit(
+                    kind: .sessionModel("Gemini"), percent: geminiSession, resetsAt: now.addingTimeInterval(3 * 3600),
+                    provider: .antigravity, length: 5 * 3600
+                ),
+                UsageLimit(
+                    kind: .weeklyModel("Gemini"), percent: geminiWeekly,
+                    resetsAt: now.addingTimeInterval((1 - elapsed) * 7 * 86400),
+                    provider: .antigravity, length: 7 * 86400
+                ),
+                UsageLimit(
+                    kind: .sessionModel("Claude/GPT"), percent: claudeSession, resetsAt: now.addingTimeInterval(3.5 * 3600),
+                    provider: .antigravity, length: 5 * 3600
+                ),
+                UsageLimit(
+                    kind: .weeklyModel("Claude/GPT"), percent: claudeWeekly,
+                    resetsAt: now.addingTimeInterval((1 - elapsed) * 7 * 86400),
+                    provider: .antigravity, length: 7 * 86400
+                ),
+            ],
+            weeklyWindowStart: nil, breakdown: [], fetchedAt: now
+        )
+    }
+
     /// Relevé fictif, pour les aperçus et les vérifications hors ligne.
     static func sample(weekly: Double, model: Double, elapsed: Double, now: Date) -> UsageSnapshot {
         let reset = now.addingTimeInterval((1 - elapsed) * 7 * 86400)
@@ -169,7 +223,7 @@ struct UsageSnapshot: Equatable {
     }
 
     func windowStart(for limit: UsageLimit) -> Date? {
-        if limit.kind != .session, limit.length == nil, let start = weeklyWindowStart { return start }
+        if limit.isWeekly, limit.length == nil, let start = weeklyWindowStart { return start }
         return limit.resetsAt.map { $0.addingTimeInterval(-limit.windowLength) }
     }
 }
@@ -178,12 +232,17 @@ struct UsageSnapshot: Equatable {
 struct UsageData {
     var claude: UsageSnapshot?
     var chatgpt: UsageSnapshot?
+    var antigravity: UsageSnapshot? = nil
     var samples: [Sample] = []
 
     var modelName: String { claude?.modelName ?? "Fable" }
 
     func snapshot(_ provider: Provider) -> UsageSnapshot? {
-        provider == .claude ? claude : chatgpt
+        switch provider {
+        case .claude: return claude
+        case .chatgpt: return chatgpt
+        case .antigravity: return antigravity
+        }
     }
 
     func limit(_ key: MetricKey) -> UsageLimit? {

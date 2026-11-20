@@ -10,7 +10,10 @@ struct AlertSettings: Equatable {
     var secondThreshold = 95.0
     /// Alerte quand, au rythme moyen, le quota s'épuise avant la réinitialisation.
     var runOut = true
-    var watched: Set<MetricKey> = [.claudeWeekly, .claudeModel, .chatgptWeekly]
+    var watched: Set<MetricKey> = [
+        .claudeWeekly, .claudeModel, .chatgptWeekly,
+        .antigravityGeminiWeekly, .antigravityClaudeWeekly,
+    ]
 
     static let thresholdChoices: [Double] = [50, 60, 70, 75, 80, 85, 90, 95]
 }

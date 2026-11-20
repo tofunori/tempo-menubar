@@ -22,13 +22,24 @@ struct SettingsView: View {
             // Les autres valeurs suivent à des fractions de la première, pour que tout bouge ensemble.
             return UsageData(
                 claude: .sample(weekly: simulated, model: simulated * 0.6, elapsed: 0.67, now: now),
-                chatgpt: .sampleChatGPT(session: simulated * 0.8, weekly: simulated * 0.5, elapsed: 0.67, now: now)
+                chatgpt: .sampleChatGPT(session: simulated * 0.8, weekly: simulated * 0.5, elapsed: 0.67, now: now),
+                antigravity: .sampleAntigravity(
+                    geminiSession: simulated * 0.7, geminiWeekly: simulated * 0.55,
+                    claudeSession: simulated * 0.4, claudeWeekly: simulated * 0.35,
+                    elapsed: 0.67, now: now
+                )
             )
         }
         // Sans relevé réel, un exemple tient lieu d'aperçu.
         var data = store.data
         if data.claude == nil { data.claude = .sample(weekly: 56, model: 10, elapsed: 0.67, now: now) }
         if data.chatgpt == nil { data.chatgpt = .sampleChatGPT(session: 35, weekly: 22, elapsed: 0.67, now: now) }
+        if data.antigravity == nil {
+            data.antigravity = .sampleAntigravity(
+                geminiSession: 18, geminiWeekly: 42, claudeSession: 12, claudeWeekly: 28,
+                elapsed: 0.67, now: now
+            )
+        }
         return data
     }
 
@@ -166,6 +177,17 @@ struct SettingsView: View {
             return tr(
                 "Ton forfait Claude n'expose pas de fenêtre de 5 heures en ce moment.",
                 "Your Claude plan exposes no 5-hour window right now."
+            )
+        case .antigravityGeminiSession, .antigravityGeminiWeekly, .antigravityClaudeSession, .antigravityClaudeWeekly:
+            if store.antigravity != nil {
+                return tr(
+                    "Ton relevé Antigravity n'inclut pas cette limite en ce moment (l'IDE n'expose que les fenêtres de 5 h).",
+                    "Your Antigravity reading doesn't include this limit right now (the IDE only exposes 5-hour windows)."
+                )
+            }
+            return tr(
+                "Aucun chiffre Antigravity : ouvre l'app Antigravity ou installe le CLI agy sur ce Mac.",
+                "No Antigravity figures: open the Antigravity app or install the agy CLI on this Mac."
             )
         default:
             return tr("Pas encore de chiffre pour cette valeur.", "No figure for this value yet.")

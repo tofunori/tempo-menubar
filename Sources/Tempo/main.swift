@@ -23,10 +23,13 @@ if let index = arguments.firstIndex(of: "--panel"), arguments.count > index + 1 
     MainActor.assumeIsolated {
         if arguments.contains("en") { Lang.setting = .en }
         if arguments.contains("fr") { Lang.setting = .fr }
-        // « live » dessine les vraies données en cache ; « chatgpt » met en avant l'hebdo de ChatGPT.
+        // « live » dessine les vraies données en cache ; « chatgpt » ou « antigravity » change le focus.
+        let focus: MetricKey = arguments.contains("antigravity")
+            ? .antigravityGeminiWeekly
+            : arguments.contains("chatgpt") ? .chatgptWeekly : .claudeWeekly
         DebugTools.panel(
             to: arguments[index + 1], over: arguments.contains("over"), live: arguments.contains("live"),
-            focus: arguments.contains("chatgpt") ? .chatgptWeekly : .claudeWeekly,
+            focus: focus,
             surge: arguments.contains("surge")
         )
     }

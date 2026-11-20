@@ -2,6 +2,7 @@ import Foundation
 
 /// Un relevé d'usage. Claude : hebdo tous modèles (w), modèle suivi (m), session (s).
 /// ChatGPT : session de 5 heures (gs), hebdo (gw).
+/// Antigravity : Gemini 5 h (ags) et hebdo (agw), Claude/GPT 5 h (acs) et hebdo (acw).
 struct Sample: Codable, Equatable {
     let t: Date
     var w: Double?
@@ -9,6 +10,10 @@ struct Sample: Codable, Equatable {
     var s: Double?
     var gs: Double?
     var gw: Double?
+    var ags: Double?
+    var agw: Double?
+    var acs: Double?
+    var acw: Double?
 
     func value(for key: MetricKey) -> Double? {
         switch key {
@@ -17,6 +22,10 @@ struct Sample: Codable, Equatable {
         case .claudeSession: return s
         case .chatgptSession: return gs
         case .chatgptWeekly: return gw
+        case .antigravityGeminiSession: return ags
+        case .antigravityGeminiWeekly: return agw
+        case .antigravityClaudeSession: return acs
+        case .antigravityClaudeWeekly: return acw
         }
     }
 }
@@ -47,11 +56,15 @@ final class HistoryStore {
             t: now,
             w: data.limit(.claudeWeekly)?.percent, m: data.limit(.claudeModel)?.percent,
             s: data.limit(.claudeSession)?.percent,
-            gs: data.limit(.chatgptSession)?.percent, gw: data.limit(.chatgptWeekly)?.percent
+            gs: data.limit(.chatgptSession)?.percent, gw: data.limit(.chatgptWeekly)?.percent,
+            ags: data.limit(.antigravityGeminiSession)?.percent, agw: data.limit(.antigravityGeminiWeekly)?.percent,
+            acs: data.limit(.antigravityClaudeSession)?.percent, acw: data.limit(.antigravityClaudeWeekly)?.percent
         )
         if let last = samples.last,
            last.w == sample.w, last.m == sample.m, last.s == sample.s,
            last.gs == sample.gs, last.gw == sample.gw,
+           last.ags == sample.ags, last.agw == sample.agw,
+           last.acs == sample.acs, last.acw == sample.acw,
            sample.t.timeIntervalSince(last.t) < 30 * 60 {
             return
         }

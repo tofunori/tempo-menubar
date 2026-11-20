@@ -30,8 +30,12 @@ enum ReadmeAssets {
 
     private static let elapsed = 0.67
 
-    /// - Parameter chatgpt: vrai pour ajouter les limites de Codex aux données.
-    private static func scene(_ weekly: Double, _ model: Double, chatgpt: Bool = true, surge: Bool = false) -> UsageData {
+    /// - Parameters:
+    ///   - chatgpt: vrai pour ajouter les limites de Codex aux données.
+    ///   - antigravity: vrai pour ajouter les limites d'Antigravity aux données.
+    private static func scene(
+        _ weekly: Double, _ model: Double, chatgpt: Bool = true, antigravity: Bool = false, surge: Bool = false
+    ) -> UsageData {
         var data = DebugTools.fakeData(weekly: weekly, model: model, elapsed: elapsed, now: now, surge: surge)
         data.claude?.breakdown = [
             BreakdownRow(name: "Claude Code", percent: 91),
@@ -39,6 +43,7 @@ enum ReadmeAssets {
             BreakdownRow(name: "Cowork", percent: 8),
         ]
         if !chatgpt { data.chatgpt = nil }
+        if !antigravity { data.antigravity = nil }
         return data
     }
 

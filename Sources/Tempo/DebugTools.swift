@@ -2,14 +2,25 @@ import AppKit
 import SwiftUI
 
 /// Outils de vérification en ligne de commande, sans ouvrir l'app :
-///   Tempo --dump                  lit l'usage des deux services, affiche limites, cadence et texte de la barre
-///   Tempo --dump local            même chose sans appeler le service de Claude (cache et fichiers locaux)
+///   Tempo --dump                  lit l'usage des services, affiche limites, cadence et texte de la barre
+///   Tempo --dump local            même chose sans appeler les services distants (cache et sources locales)
 ///   Tempo --icons out.png [1.3]   dessine une planche de tous les styles d'icône, à la grosseur donnée
 ///   Tempo --panel out.png [over]  dessine le panneau (vues Cumul et Par jour) avec des données fictives
 enum DebugTools {
     static func dump(localOnly: Bool) async {
         let now = Date()
-        var data = UsageData(claude: UsageCache.load(), chatgpt: CodexUsage.loadLocal(now: now), samples: HistoryStore().samples)
+        var data = UsageData(
+            claude: UsageCache.load(),
+            chatgpt: CodexUsage.loadLocal(now: now),
+            antigravity: AntigravityCache.load(now: now),
+            samples: HistoryStore().samples
+        )
+
+        if let freshAntigravity = await AntigravityUsage.fetch(allowCLI: !localOnly, forceRefresh: !localOnly, now: now) {
+            data.antigravity = localOnly
+                ? AntigravityUsage.merge(fresh: freshAntigravity, existing: data.antigravity, now: now)
+                : freshAntigravity
+        }
 
         if !localOnly {
             do {
@@ -54,6 +65,8 @@ enum DebugTools {
         let combos: [(MetricKey, MetricKey?)] = [
             (.claudeWeekly, .claudeModel), (.claudeWeekly, .chatgptWeekly),
             (.chatgptSession, .claudeWeekly), (.chatgptWeekly, .chatgptSession),
+            (.antigravityGeminiWeekly, .antigravityClaudeWeekly),
+            (.claudeWeekly, .antigravityGeminiWeekly),
         ]
         for (primary, secondary) in combos {
             var options = DisplayOptions()
@@ -70,7 +83,11 @@ enum DebugTools {
     /// Relevés fictifs qui montent par paliers, comme de vraies journées de travail.
     /// - Parameter surge: vrai pour une dernière journée beaucoup plus chargée que les autres.
     static func fakeSamples(
-        weekly: Double, model: Double, elapsed: Double, now: Date, chatgptWeekly: Double? = nil, surge: Bool = false
+        weekly: Double, model: Double, elapsed: Double, now: Date,
+        chatgptWeekly: Double? = nil,
+        antigravityGeminiWeekly: Double? = nil,
+        antigravityClaudeWeekly: Double? = nil,
+        surge: Bool = false
     ) -> [Sample] {
         let weights = surge ? [0.7, 0.6, 0.8, 0.5, 3.2, 1, 1] : [1.3, 0.7, 1.6, 0.5, 1.1, 0.9, 1.2]
         func cumulative(_ x: Double) -> Double {
@@ -86,18 +103,30 @@ enum DebugTools {
             let share = cumulative(u * days) / cumulative(days)
             return Sample(
                 t: start.addingTimeInterval(u * days * 86400),
-                w: weekly * share, m: model * share, gw: chatgptWeekly.map { $0 * share }
+                w: weekly * share, m: model * share,
+                gw: chatgptWeekly.map { $0 * share },
+                agw: antigravityGeminiWeekly.map { $0 * share },
+                acw: antigravityClaudeWeekly.map { $0 * share }
             )
         }
     }
 
-    /// Données fictives des deux services.
+    /// Données fictives des services.
     static func fakeData(weekly: Double, model: Double, elapsed: Double, now: Date, surge: Bool = false) -> UsageData {
         UsageData(
             claude: .sample(weekly: weekly, model: model, elapsed: elapsed, now: now),
             chatgpt: .sampleChatGPT(session: weekly * 0.8, weekly: weekly * 0.5, elapsed: elapsed, now: now),
+            antigravity: .sampleAntigravity(
+                geminiSession: weekly * 0.35, geminiWeekly: weekly * 0.65,
+                claudeSession: weekly * 0.2, claudeWeekly: weekly * 0.45,
+                elapsed: elapsed, now: now
+            ),
             samples: fakeSamples(
-                weekly: weekly, model: model, elapsed: elapsed, now: now, chatgptWeekly: weekly * 0.5, surge: surge
+                weekly: weekly, model: model, elapsed: elapsed, now: now,
+                chatgptWeekly: weekly * 0.5,
+                antigravityGeminiWeekly: weekly * 0.65,
+                antigravityClaudeWeekly: weekly * 0.45,
+                surge: surge
             )
         )
     }
@@ -193,13 +222,18 @@ enum DebugTools {
     }
 
     /// Dessine le panneau hors écran, dans les deux vues du graphique.
-    /// - Parameter live: vrai pour utiliser le cache de Claude et les fichiers de Codex plutôt que des données fictives.
+    /// - Parameter live: vrai pour utiliser les données locales et en cache plutôt que des données fictives.
     @MainActor
     static func panel(to path: String, over: Bool, live: Bool, focus: MetricKey, surge: Bool = false) {
         let now = Date()
         var data: UsageData
         if live {
-            data = UsageData(claude: UsageCache.load(), chatgpt: CodexUsage.loadLocal(now: now), samples: HistoryStore().samples)
+            data = UsageData(
+                claude: UsageCache.load(),
+                chatgpt: CodexUsage.loadLocal(now: now),
+                antigravity: AntigravityCache.load(now: now),
+                samples: HistoryStore().samples
+            )
         } else {
             data = fakeData(weekly: over ? 81 : 56, model: over ? 34 : 10, elapsed: 0.67, now: now, surge: surge)
             data.claude?.breakdown = [

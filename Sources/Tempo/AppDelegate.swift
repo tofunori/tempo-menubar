@@ -30,7 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await alerts.requestPermission() }
         }
         store.$snapshot.map { _ in () }
-            .merge(with: store.$chatgpt.map { _ in () }, settings.$alerts.map { _ in () })
+            .merge(
+                with: store.$chatgpt.map { _ in () },
+                store.$antigravity.map { _ in () },
+                settings.$alerts.map { _ in () }
+            )
             .debounce(for: .seconds(2), scheduler: RunLoop.main)
             .sink { [weak self] in self?.checkAlerts() }
             .store(in: &bag)

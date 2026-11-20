@@ -56,7 +56,11 @@ final class DisplayTests: XCTestCase {
     private func data(now: Date) -> UsageData {
         UsageData(
             claude: .sample(weekly: 59, model: 16, elapsed: 0.68, now: now),
-            chatgpt: .sampleChatGPT(session: 0, weekly: 10, elapsed: 0.27, now: now)
+            chatgpt: .sampleChatGPT(session: 0, weekly: 10, elapsed: 0.27, now: now),
+            antigravity: .sampleAntigravity(
+                geminiSession: 12, geminiWeekly: 42, claudeSession: 5, claudeWeekly: 28,
+                elapsed: 0.5, now: now
+            )
         )
     }
 
@@ -74,6 +78,9 @@ final class DisplayTests: XCTestCase {
         XCTAssertEqual(title(.claudeWeekly, .claudeModel), "59% · F 16%")
         XCTAssertEqual(title(.claudeWeekly, .chatgptWeekly), "59% · G 10%")
         XCTAssertEqual(title(.chatgptSession, .claudeWeekly), "0% · C 59%")
+        XCTAssertEqual(title(.claudeWeekly, .antigravityGeminiWeekly), "59% · AG 42%")
+        XCTAssertEqual(title(.antigravityGeminiWeekly, .antigravityClaudeWeekly), "42% · AC 28%")
+        XCTAssertEqual(title(.antigravityGeminiWeekly, .antigravityGeminiSession), "42% · AG5 12%")
         XCTAssertEqual(title(.claudeWeekly, nil), "59%")
         XCTAssertEqual(title(.claudeWeekly, .claudeWeekly), "59%", "Une valeur répétée n'est montrée qu'une fois")
         XCTAssertEqual(title(.claudeWeekly, .chatgptWeekly, style: .lines), "", "Deux lignes porte ses chiffres dans le dessin")

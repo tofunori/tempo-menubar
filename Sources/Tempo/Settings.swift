@@ -245,7 +245,7 @@ final class Settings: ObservableObject {
         language = savedLanguage
         Lang.setting = savedLanguage
 
-        items = [Settings.loadItem(0, from: d), Settings.loadItem(1, from: d)]
+        items = [Settings.loadItem(0, from: d), Settings.loadItem(1, from: d), Settings.loadItem(2, from: d)]
         colorMode = d.string(forKey: "colorMode").flatMap(ColorMode.init(rawValue:)) ?? base.colorMode
 
         if let saved = d.string(forKey: "modelColorMode").flatMap(ModelColorMode.init(rawValue:)) {
@@ -288,10 +288,19 @@ final class Settings: ObservableObject {
 
     private static func loadItem(_ index: Int, from d: UserDefaults) -> ItemConfig {
         let prefix = "item\(index)."
-        // Par défaut : la première icône suit Claude, la deuxième (masquée) suit ChatGPT.
-        var item = index == 0
-            ? ItemConfig()
-            : ItemConfig(enabled: false, iconStyle: .arcs, primary: .chatgptWeekly, secondary: .chatgptSession)
+        // Par défaut : icône 1 sur Claude, icône 2 (masquée) sur ChatGPT, icône 3 (masquée) sur Antigravity.
+        var item: ItemConfig
+        switch index {
+        case 0:
+            item = ItemConfig()
+        case 1:
+            item = ItemConfig(enabled: false, iconStyle: .arcs, primary: .chatgptWeekly, secondary: .chatgptSession)
+        default:
+            item = ItemConfig(
+                enabled: false, iconStyle: .parens,
+                primary: .antigravityGeminiWeekly, secondary: .antigravityClaudeWeekly
+            )
+        }
 
         if d.object(forKey: prefix + "style") == nil, index == 0 {
             // Reprise des réglages d'avant les icônes multiples.

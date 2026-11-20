@@ -87,4 +87,17 @@ final class AlertRulesTests: XCTestCase {
         let alerts = AlertRules.due(data: data, settings: AlertSettings(), sent: [], now: now)
         XCTAssertEqual(alerts.map(\.title), ["ChatGPT · weekly: 82%"])
     }
+
+    func testAntigravityValuesAreWatchedToo() {
+        let data = UsageData(
+            claude: nil,
+            chatgpt: nil,
+            antigravity: .sampleAntigravity(
+                geminiSession: 15, geminiWeekly: 84, claudeSession: 10, claudeWeekly: 20,
+                elapsed: 0.9, now: now
+            )
+        )
+        let alerts = AlertRules.due(data: data, settings: AlertSettings(), sent: [], now: now)
+        XCTAssertEqual(alerts.map(\.title), ["Antigravity · Gemini weekly: 84%"])
+    }
 }

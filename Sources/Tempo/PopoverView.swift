@@ -57,8 +57,10 @@ struct PanelContent: View {
     var decorative = false
     @Environment(\.palette) private var palette
 
-    /// Vrai quand les deux services ont des données : on nomme alors chaque bloc.
-    private var showsBoth: Bool { data.claude != nil && data.chatgpt != nil }
+    /// Vrai quand plusieurs services ont des données : on nomme alors chaque bloc.
+    private var showsProviders: Bool {
+        Provider.allCases.filter { data.snapshot($0) != nil }.count > 1
+    }
 
     /// La valeur mise en avant : celle de l'icône cliquée si elle a une prévision, sinon la première qui en a une.
     private var hero: LimitInsight? {
@@ -71,7 +73,10 @@ struct PanelContent: View {
     /// Le graphique demande une fenêtre de plusieurs jours.
     private func charted(_ hero: LimitInsight?) -> LimitInsight? {
         if let hero, hero.limit.isWeekly { return hero }
-        return [MetricKey.claudeWeekly, .chatgptWeekly].lazy
+        return [
+            MetricKey.claudeWeekly, .chatgptWeekly,
+            .antigravityGeminiWeekly, .antigravityClaudeWeekly,
+        ].lazy
             .compactMap { data.insight($0, now: now) }
             .first { $0.forecast != nil }
     }
@@ -85,7 +90,7 @@ struct PanelContent: View {
 
             if let hero, let forecast = hero.forecast {
                 VStack(alignment: .leading, spacing: 2) {
-                    if showsBoth, let key = hero.limit.key {
+                    if showsProviders, let key = hero.limit.key {
                         Text(key.label(modelName: data.modelName))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -110,7 +115,7 @@ struct PanelContent: View {
                 Divider().padding(.top, 16)
                 HStack(spacing: 6) {
                     Text(tr("Ta semaine", "Your week")).font(.callout).fontWeight(.medium)
-                    if showsBoth, let key = chart.limit.key {
+                    if showsProviders, let key = chart.limit.key {
                         Text(key.label(modelName: data.modelName)).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -146,7 +151,7 @@ struct PanelContent: View {
                 }
             }
 
-            if data.claude == nil, data.chatgpt == nil, state == .loading || state == .idle {
+            if Provider.allCases.allSatisfy({ data.snapshot($0) == nil }), state == .loading || state == .idle {
                 Text(tr("Lecture de l'usage…", "Reading usage…")).foregroundStyle(.secondary).padding(.top, 12)
             }
 
@@ -169,7 +174,7 @@ struct PanelContent: View {
             HStack {
                 if decorative { fakeButton(tr("Réglages…", "Settings…")) } else { Button(tr("Réglages…", "Settings…"), action: onSettings) }
                 Spacer()
-                if let snapshot = data.claude {
+                if let snapshot = data.claude ?? data.antigravity ?? data.chatgpt {
                     Text(tr("Relevé \(Fmt.ago(snapshot.fetchedAt, now: now))", "Updated \(Fmt.ago(snapshot.fetchedAt, now: now))"))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
@@ -182,18 +187,18 @@ struct PanelContent: View {
         }
     }
 
-    /// Les limites d'un service. Le nom du service n'apparaît que s'il y en a deux.
+    /// Les limites d'un service. Le nom du service n'apparaît que s'il y en a plusieurs.
     private func section(_ provider: Provider, _ rows: [LimitInsight], first: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if showsBoth {
+            if showsProviders {
                 HStack {
                     Text(provider.label)
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    // Les chiffres de Codex viennent de sa dernière utilisation sur ce Mac.
-                    if provider == .chatgpt, let read = data.chatgpt?.fetchedAt, now.timeIntervalSince(read) > 3600 {
+                    // Les chiffres locaux (Codex, Antigravity en cache) peuvent dater de la dernière utilisation.
+                    if provider != .claude, let read = data.snapshot(provider)?.fetchedAt, now.timeIntervalSince(read) > 3600 {
                         Text(tr("relevé \(Fmt.ago(read, now: now))", "read \(Fmt.ago(read, now: now))"))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
