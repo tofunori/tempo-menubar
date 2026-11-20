@@ -123,12 +123,16 @@ enum ReadmeAssets {
         return raster(MenuBarContent.make(data: data, options: options, now: now, zoom: zoom), withTitle: withTitle)
     }
 
-    private static func panel(_ data: UsageData, view: String, focus: MetricKey = .claudeWeekly) -> some View {
+    private static func panel(
+        _ data: UsageData, view: String, focus: MetricKey = .claudeWeekly, collapsed: Set<Provider> = []
+    ) -> some View {
         PanelContent(
             data: data, focus: focus, state: .ok, now: now,
-            chartView: .constant(view), onRefresh: {}, onSettings: {}, decorative: true
+            chartView: .constant(view), onRefresh: {}, onSettings: {},
+            collapsedProviders: collapsed, decorative: true
         )
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(width: 348)
         .background(Color(red: 0.13, green: 0.13, blue: 0.15), in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12)))
@@ -139,7 +143,7 @@ enum ReadmeAssets {
 
     /// Bannière : la barre de menus, le panneau ouvert et le titre.
     private static func hero() -> some View {
-        let data = scene(56, 10, chatgpt: false)
+        let data = scene(56, 10, chatgpt: true, antigravity: true)
         let icon = item(data, withTitle: true)
 
         return ZStack(alignment: .topLeading) {
@@ -173,10 +177,10 @@ enum ReadmeAssets {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Tempo")
                     .font(.system(size: 80, weight: .bold, design: .rounded))
-                Text("Claude and ChatGPT usage in your\nmenu bar. And whether you're on pace.")
+                Text("Claude, ChatGPT, and Antigravity in your\nmenu bar. And whether you're on pace.")
                     .font(.system(size: 27, weight: .medium))
                     .lineSpacing(4)
-                Text("Weekly and 5-hour limits, a forecast of when the quota\nruns out, and 18 icon styles you can recolor.")
+                Text("Weekly and 5-hour limits, a forecast of when the quota\nruns out, collapsible services, and 18 icon styles.")
                     .font(.system(size: 17))
                     .lineSpacing(3)
                     .opacity(0.7)
@@ -184,19 +188,19 @@ enum ReadmeAssets {
             .padding(.leading, 76)
             .padding(.top, 196)
 
-            panel(data, view: "cum")
+            panel(data, view: "cum", collapsed: [.chatgpt, .antigravity])
                 .padding(.leading, 802)
-                .padding(.top, 44)
+                .padding(.top, 72)
         }
         .foregroundStyle(.white)
         .frame(width: 1280, height: 650, alignment: .topLeading)
     }
 
-    /// Trois états du panneau : dans le rythme, les deux services ensemble, et une accélération récente.
+    /// Trois états du panneau : dans le rythme, les trois services ensemble (avec micro-barre), et une accélération récente.
     private static func panels() -> some View {
         HStack(alignment: .top, spacing: 28) {
             panel(scene(56, 10, chatgpt: false), view: "cum")
-            panel(scene(56, 10), view: "day")
+            panel(scene(56, 10, chatgpt: true, antigravity: true), view: "day", collapsed: [.chatgpt])
             panel(scene(81, 34, chatgpt: false, surge: true), view: "cum")
         }
         .padding(44)
@@ -205,11 +209,11 @@ enum ReadmeAssets {
 
     /// Des combinaisons de valeurs : chaque icône montre la paire qu'on lui donne.
     private static func combos() -> some View {
-        let data = scene(56, 10)
+        let data = scene(56, 10, chatgpt: true, antigravity: true)
         let examples: [(String, IconStyle, MetricKey, MetricKey?)] = [
             ("Claude weekly + Fable", .dial, .claudeWeekly, .claudeModel),
             ("Claude weekly + ChatGPT weekly", .arcs, .claudeWeekly, .chatgptWeekly),
-            ("ChatGPT 5 h + Claude weekly", .parens, .chatgptSession, .claudeWeekly),
+            ("Antigravity Gemini + Claude/GPT", .parens, .antigravityGeminiWeekly, .antigravityClaudeWeekly),
             ("ChatGPT weekly + ChatGPT 5 h", .duo, .chatgptWeekly, .chatgptSession),
         ]
         func icon(_ style: IconStyle, _ primary: MetricKey, _ secondary: MetricKey?) -> NSImage {
@@ -226,7 +230,7 @@ enum ReadmeAssets {
                 .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
         }
         func caption(_ text: String) -> some View {
-            Text(text).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75))
+            Text(text).font(.system(size: 13)).foregroundStyle(.white.opacity(0.75)).fixedSize()
         }
 
         return VStack(alignment: .leading, spacing: 22) {
@@ -242,8 +246,9 @@ enum ReadmeAssets {
                 strip {
                     Image(nsImage: icon(.dial, .claudeWeekly, .claudeModel))
                     Image(nsImage: icon(.arcs, .chatgptWeekly, .chatgptSession))
+                    Image(nsImage: icon(.parens, .antigravityGeminiWeekly, .antigravityClaudeWeekly))
                 }
-                caption("Or two icons side by side, one per service")
+                caption("Or up to three icons side by side, one per service")
             }
         }
         .padding(44)

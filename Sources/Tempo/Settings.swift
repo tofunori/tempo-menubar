@@ -229,6 +229,10 @@ final class Settings: ObservableObject {
     @Published var showRemaining: Bool { didSet { defaults.set(showRemaining, forKey: "showRemaining") } }
     @Published var refreshMinutes: Int { didSet { defaults.set(refreshMinutes, forKey: "refreshMinutes") } }
     @Published var alerts: AlertSettings { didSet { saveAlerts() } }
+    /// Services repliés dans le panneau (mémorisés entre les ouvertures).
+    @Published var collapsedProviders: Set<Provider> {
+        didSet { defaults.set(collapsedProviders.map(\.rawValue).sorted(), forKey: "collapsedProviders") }
+    }
     @Published var language: AppLanguage {
         didSet {
             defaults.set(language.rawValue, forKey: "language")
@@ -269,9 +273,22 @@ final class Settings: ObservableObject {
         showPace = d.object(forKey: "showPace") as? Bool ?? base.showPace
         showRemaining = d.object(forKey: "showRemaining") as? Bool ?? base.showRemaining
         alerts = Settings.loadAlerts(from: d)
+        if let raw = d.stringArray(forKey: "collapsedProviders") {
+            collapsedProviders = Set(raw.compactMap(Provider.init(rawValue:)))
+        } else {
+            collapsedProviders = []
+        }
         let minutes = d.integer(forKey: "refreshMinutes")
         // Le service refuse les demandes trop rapprochées : jamais plus souvent qu'aux 5 minutes.
         refreshMinutes = minutes >= 5 ? minutes : 15
+    }
+
+    func toggleCollapsed(_ provider: Provider) {
+        if collapsedProviders.contains(provider) {
+            collapsedProviders.remove(provider)
+        } else {
+            collapsedProviders.insert(provider)
+        }
     }
 
     /// Les réglages complets de l'icône `index`.

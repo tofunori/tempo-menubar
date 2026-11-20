@@ -118,15 +118,20 @@ final class StatusController: NSObject {
         let index = items.firstIndex { $0?.button === sender } ?? 0
         let focus = settings.items[index].primary
 
+        // Plafonne la hauteur du panneau à la zone libre de l'écran pour que l'en-tête ne soit jamais rogné.
+        let visibleHeight = (sender.window?.screen ?? NSScreen.main)?.visibleFrame.height ?? 780
+        let maxPanelHeight = max(420, min(780, floor(visibleHeight - 48)))
+
         // Le panneau SwiftUI n'existe que pendant qu'il est ouvert : l'app reste légère au repos.
         let host = NSHostingController(rootView: PopoverView(
-            store: store, settings: settings, focus: focus,
+            store: store, settings: settings, focus: focus, maxHeight: maxPanelHeight,
             openSettings: { [weak self] in
                 self?.popover.performClose(nil)
                 self?.openSettings()
             }
         ))
         host.sizingOptions = [.preferredContentSize]
+        popover.contentSize = .zero
         popover.contentViewController = host
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)

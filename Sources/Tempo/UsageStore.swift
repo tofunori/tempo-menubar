@@ -15,6 +15,7 @@ final class UsageStore: ObservableObject {
     /// Dernier relevé d'Antigravity (serveur local ou CLI `agy`). Nil si Antigravity n'est pas utilisé ici.
     @Published private(set) var antigravity: UsageSnapshot?
     @Published private(set) var state: State = .idle
+    @Published private(set) var isRefreshing = false
     @Published private(set) var samples: [Sample] = []
 
     private let client = UsageClient()
@@ -78,6 +79,8 @@ final class UsageStore: ObservableObject {
     /// - Parameter automatic: vrai pour les essais du minuteur, qui respectent l'espacement
     ///   après un refus. Le bouton Actualiser essaie toujours.
     func refresh(automatic: Bool = false) async {
+        isRefreshing = true
+        defer { isRefreshing = false }
         await refreshCodex()
         async let ag: Void = refreshAntigravity(allowCLI: true, forceRefresh: true)
         async let cl: Void = refreshClaude(automatic: automatic)

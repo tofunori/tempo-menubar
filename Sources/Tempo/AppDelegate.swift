@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in await self?.store.refresh() }
+            Task { @MainActor in await self?.store.refresh(automatic: true) }
         }
     }
 

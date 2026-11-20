@@ -41,7 +41,7 @@ Tempo compares what you have used with how far you are into the window, then giv
 ## Combinations
 
 <p align="center">
-  <img src="docs/combos.jpg" alt="Four icons showing different pairs of values, and two icons side by side" width="100%">
+  <img src="docs/combos.jpg" alt="Four icons showing different pairs of values, and three icons side by side" width="100%">
 </p>
 
 Nine values are available, and every icon takes a first value and an optional second one:
@@ -63,15 +63,15 @@ The pace marker, the forecast and the color follow the first value. The second v
 ## The panel
 
 <p align="center">
-  <img src="docs/panels.jpg" alt="Three states of the Tempo panel: on pace, both services with the per-day view, and a recent speed-up" width="100%">
+  <img src="docs/panels.jpg" alt="Three states of the Tempo panel: on pace, all three services with a collapsed micro-bar and per-day view, and a recent speed-up" width="100%">
 </p>
 
 Click an icon to open the panel. From top to bottom:
 
-1. **The answer first.** One sentence with the forecast for the icon's first value, and a status pill: on pace, tight, or too fast.
-2. **Bars that include the pace.** The solid part is what you used. The faded part is where you will be at the reset. The vertical line is the steady pace. With multiple services, each one gets its own block.
-3. **The last 24 hours.** A second line compares your recent rate with the average. It stays quiet when they agree, and turns into *you're speeding up* or *you're slowing down*, with its own forecast, when they don't. The chart then draws both forecasts.
-4. **Your week, two ways.** *Cumulative* plots real usage against the steady pace and the forecast. *Per day* shows the points used each day and what you can still spend on the remaining days.
+1. **The answer first.** A large percentage next to the forecast and daily budget for the active limit, pinned at the top. When your recent rate diverges, a quiet single line highlights the speed-up or slow-down.
+2. **Slim pace bars and collapsible services.** The solid bar is what you used, the faded part is where you will end, and the tick is the steady pace. Click a service header to collapse it into a single micro-bar row (remembered across restarts), or click any active bar to inspect its forecast and weekly chart. Inactive 0 % limits collapse into a quiet single line, and the middle section scrolls cleanly on smaller screens.
+3. **Your week, two ways.** *Cumulative* plots real usage against the steady pace and forecast. *Per day* shows the points used each day and what you can still spend on the remaining days.
+4. **Keyboard shortcuts.** While the panel is open: `⌘R` to refresh, `⌘,` for settings, and `⌘Q` to quit.
 
 ## Alerts
 

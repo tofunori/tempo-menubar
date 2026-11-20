@@ -110,4 +110,71 @@ final class DisplayTests: XCTestCase {
         let small = try XCTUnwrap(MenuBarContent.make(data: data(now: now), options: options, now: now, maxHeight: 22).image)
         XCTAssertLessThan(small.size.height, capped.size.height)
     }
+
+    // MARK: - Mise en page du panneau (repli et limites à 0 % inactives)
+
+    func testPanelLayoutPartitionsInactiveZeroLimitsAndGroupsSameModel() {
+        Lang.setting = .en
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            limits: [
+                UsageLimit(kind: .sessionModel("Gemini"), percent: 9, resetsAt: now.addingTimeInterval(3 * 3600), provider: .antigravity, length: 5 * 3600),
+                UsageLimit(kind: .weeklyModel("Gemini"), percent: 41, resetsAt: now.addingTimeInterval(4 * 86400), provider: .antigravity, length: 7 * 86400),
+                UsageLimit(kind: .sessionModel("Claude/GPT"), percent: 0, resetsAt: now.addingTimeInterval(5 * 3600), provider: .antigravity, length: 5 * 3600),
+                UsageLimit(kind: .weeklyModel("Claude/GPT"), percent: 0, resetsAt: now.addingTimeInterval(7 * 86400), provider: .antigravity, length: 7 * 86400),
+            ],
+            weeklyWindowStart: nil, breakdown: [], fetchedAt: now
+        )
+        let usage = UsageData(antigravity: snapshot)
+        let rows = usage.insights(.antigravity, now: now)
+
+        let parts = PanelLayout.partitionLimits(rows)
+        XCTAssertEqual(parts.active.map(\.limit.key), [.antigravityGeminiSession, .antigravityGeminiWeekly])
+        XCTAssertEqual(parts.inactiveZero.map(\.limit.key), [.antigravityClaudeSession, .antigravityClaudeWeekly])
+        XCTAssertEqual(PanelLayout.inactiveSummaryLabel(for: parts.inactiveZero), "Claude/GPT · 5 h · Weekly")
+
+        Lang.setting = .fr
+        XCTAssertEqual(PanelLayout.inactiveSummaryLabel(for: parts.inactiveZero), "Claude/GPT · 5 h · Hebdo")
+    }
+
+    func testPanelLayoutKeepsAllBarsWhenEveryLimitIsInactive() {
+        let now = Date()
+        let snapshot = UsageSnapshot(
+            limits: [
+                UsageLimit(kind: .sessionModel("Claude/GPT"), percent: 0, resetsAt: now.addingTimeInterval(5 * 3600), provider: .antigravity, length: 5 * 3600),
+                UsageLimit(kind: .weeklyModel("Claude/GPT"), percent: 0, resetsAt: now.addingTimeInterval(7 * 86400), provider: .antigravity, length: 7 * 86400),
+            ],
+            weeklyWindowStart: nil, breakdown: [], fetchedAt: now
+        )
+        let rows = UsageData(antigravity: snapshot).insights(.antigravity, now: now)
+        let parts = PanelLayout.partitionLimits(rows)
+        XCTAssertEqual(parts.active.count, 2)
+        XCTAssertTrue(parts.inactiveZero.isEmpty)
+    }
+
+    func testPanelLayoutPrimarySummaryInlineForecastAndFocus() throws {
+        Lang.setting = .en
+        let now = Date()
+        let usage = data(now: now)
+
+        let agPrimary = try XCTUnwrap(PanelLayout.primarySummary(for: .antigravity, rows: usage.insights(.antigravity, now: now)))
+        XCTAssertEqual(agPrimary.limit.key, .antigravityGeminiWeekly, "Retient la limite hebdo la plus utilisée pour la micro-barre")
+        XCTAssertEqual(PanelLayout.inlineForecast(for: agPrimary), "→ 84%")
+
+        let claudePrimary = try XCTUnwrap(PanelLayout.primarySummary(for: .claude, rows: usage.insights(.claude, now: now)))
+        XCTAssertEqual(claudePrimary.limit.key, .claudeWeekly)
+        XCTAssertEqual(PanelLayout.inlineForecast(for: claudePrimary), "→ 87%")
+
+        let gptPrimary = try XCTUnwrap(PanelLayout.primarySummary(for: .chatgpt, rows: usage.insights(.chatgpt, now: now)))
+        XCTAssertEqual(gptPrimary.limit.key, .chatgptWeekly)
+
+        XCTAssertEqual(PanelLayout.preferredFocus(for: .claude, in: usage, now: now), .claudeWeekly)
+        XCTAssertEqual(PanelLayout.preferredFocus(for: .chatgpt, in: usage, now: now), .chatgptWeekly)
+        XCTAssertEqual(PanelLayout.preferredFocus(for: .antigravity, in: usage, now: now), .antigravityGeminiWeekly)
+
+        let agHero = usage.insight(.antigravityGeminiWeekly, now: now)
+        XCTAssertEqual(PanelLayout.footerSnapshot(for: agHero, in: usage)?.provider, .antigravity)
+        let gptHero = usage.insight(.chatgptWeekly, now: now)
+        XCTAssertEqual(PanelLayout.footerSnapshot(for: gptHero, in: usage)?.provider, .chatgpt)
+    }
 }
