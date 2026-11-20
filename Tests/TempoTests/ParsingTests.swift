@@ -355,8 +355,9 @@ final class ParsingTests: XCTestCase {
         }
         """
         let weeklyFallback = try XCTUnwrap(AntigravityUsage.parseCommandModelConfigs(Data(configs.utf8), now: now))
-        XCTAssertEqual(weeklyFallback.limits.first?.key, .antigravityGeminiWeekly)
-        XCTAssertEqual(weeklyFallback.limits.first?.percent, 50, accuracy: 1e-6)
+        let firstLimit = try XCTUnwrap(weeklyFallback.limits.first)
+        XCTAssertEqual(firstLimit.key, .antigravityGeminiWeekly)
+        XCTAssertEqual(firstLimit.percent, 50, accuracy: 1e-6)
     }
 
     func testAntigravityProcessPortAndVersionParsing() {
